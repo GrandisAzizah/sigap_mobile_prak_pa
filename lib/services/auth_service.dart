@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
@@ -35,6 +36,37 @@ class AuthService {
       password: password,
       data: {'nim': nim, 'name': name},
     );
+  }
+  
+  /// Ambil nama pengguna yang sedang login dari tabel users.
+  Future<String> getCurrentUserName() async {
+    final uid = currentUser?.id;
+
+    if (uid == null) return 'Pengguna';
+
+    try {
+      final row = await _sb
+          .from('users')
+          .select('name')
+          .eq('id', uid)
+          .maybeSingle();
+
+      final name = row?['name'] as String?;
+
+      if (name != null && name.trim().isNotEmpty) {
+        return name.trim();
+      }
+
+      // Fallback jika nama belum tersedia di tabel users.
+      final metadataName = currentUser?.userMetadata?['name'] as String?;
+
+      return metadataName?.trim().isNotEmpty == true
+          ? metadataName!.trim()
+          : 'Pengguna';
+    } catch (e) {
+      debugPrint('Gagal mengambil nama pengguna: $e');
+      return 'Pengguna';
+    }
   }
 
   Future<void> logout() => _sb.auth.signOut();
