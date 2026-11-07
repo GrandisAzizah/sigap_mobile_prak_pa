@@ -16,51 +16,44 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // Service untuk menyimpan pengaturan aplikasi.
   final _settings = SettingsService();
-
-  // Controller untuk mengelola input nama pengguna.
   final _nameController = TextEditingController();
 
-  // Status pengaturan notifikasi.
+  String _email = '';
+
   bool _notifications = true;
   bool _sound = true;
   bool _vibration = true;
-
-  // Status proses pemuatan dan penyimpanan data.
   bool _loading = true;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-
-    // Mengambil data profil dan pengaturan saat halaman dibuka.
     _loadProfile();
   }
 
-  // Mengambil nama pengguna dari tabel users di Supabase.
-  // Pengaturan notifikasi diambil dari SettingsService.
+  // Mengambil data akun dan pengaturan aplikasi.
   Future<void> _loadProfile() async {
     final db = Supabase.instance.client;
     final user = db.auth.currentUser;
 
     try {
       if (user != null) {
+        _email = user.email ?? '';
+
         final profile = await db
             .from('users')
             .select('name')
             .eq('id', user.id)
             .maybeSingle();
 
-        // Mengisi input nama berdasarkan data dari database.
         _nameController.text =
             profile?['name']?.toString() ??
             user.userMetadata?['name']?.toString() ??
             '';
       }
 
-      // Mengambil preferensi notifikasi yang tersimpan.
       _notifications = await _settings.notificationsEnabled;
       _sound = await _settings.soundEnabled;
       _vibration = await _settings.vibrationEnabled;
@@ -73,17 +66,12 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // Menyimpan perubahan nama ke Supabase.
+  // Menyimpan perubahan nama pengguna.
   Future<void> _saveProfile() async {
     final name = _nameController.text.trim();
 
-    // Memastikan nama tidak kosong.
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nama tidak boleh kosong.'),
-        ),
-      );
+      _showMessage('Nama tidak boleh kosong.');
       return;
     }
 
@@ -97,37 +85,20 @@ class _ProfilePageState extends State<ProfilePage> {
         throw Exception('Pengguna belum login.');
       }
 
-      // Memperbarui nama pada metadata Supabase Auth.
       await db.auth.updateUser(
-        UserAttributes(
-          data: {'name': name},
-        ),
+        UserAttributes(data: {'name': name}),
       );
 
-      // Memperbarui nama pada tabel public.users.
       await db
           .from('users')
           .update({'name': name})
           .eq('id', user.id);
 
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profil berhasil diperbarui.'),
-        ),
-      );
-
-      // Memperbarui tampilan nama pada halaman profil.
-      setState(() {});
+      _showMessage('Profil berhasil diperbarui.');
     } catch (e) {
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal memperbarui profil: $e'),
-        ),
-      );
+      _showMessage('Gagal memperbarui profil: $e');
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -135,83 +106,100 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // Menampilkan dialog untuk mengubah password.
+  // Menampilkan dialog untuk mengganti password.
   Future<void> _changePassword() async {
     final controller = TextEditingController();
 
     final password = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ubah Password'),
-        content: TextField(
-          controller: controller,
-          obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'Password baru',
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            'Ubah Password',
+            style: AppTextStyle.heading.copyWith(fontSize: 18),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(
-              context,
-              controller.text,
+          content: TextField(
+            controller: controller,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Password baru',
+              hintText: 'Minimal 8 karakter',
             ),
-            child: const Text('Simpan'),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, controller.text);
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
     );
 
-    // Password minimal terdiri dari 8 karakter.
-    if (password == null || password.isEmpty) {
-      controller.dispose();
-      return;
-    }
+    controller.dispose();
+
+    if (password == null || password.isEmpty) return;
 
     if (password.length < 8) {
-      controller.dispose();
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password minimal 8 karakter.'),
-        ),
-      );
+      _showMessage('Password minimal 8 karakter.');
       return;
     }
 
     try {
-      // Memperbarui password melalui Supabase Auth.
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: password),
       );
 
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password berhasil diubah.'),
-        ),
-      );
+      _showMessage('Password berhasil diubah.');
     } catch (e) {
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mengubah password: $e'),
-        ),
-      );
-    } finally {
-      controller.dispose();
+      _showMessage('Gagal mengubah password: $e');
     }
   }
 
-  // Membersihkan controller ketika halaman tidak digunakan.
+  // Mengatur preferensi notifikasi.
+  Future<void> _setNotifications(bool value) async {
+    setState(() => _notifications = value);
+    await _settings.setNotifications(value);
+  }
+
+  Future<void> _setSound(bool value) async {
+    setState(() => _sound = value);
+    await _settings.setSound(value);
+  }
+
+  Future<void> _setVibration(bool value) async {
+    setState(() => _vibration = value);
+    await _settings.setVibration(value);
+  }
+
+  // Keluar dari akun.
+  Future<void> _logout() async {
+    try {
+      await AuthService().logout();
+
+      if (!mounted) return;
+      Get.offAll(() => const LoginPage());
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('Gagal keluar dari akun: $e');
+    }
+  }
+
+  // Menampilkan pesan.
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -220,163 +208,493 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Menampilkan loading selama data profil diambil.
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(),
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+          ),
+        ),
       );
     }
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
 
-      appBar: AppBar(
-        title: const Text('Profil & Pengaturan'),
-        centerTitle: true,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 26, 20, 30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildAccountSection(),
+
+                    const SizedBox(height: 26),
+
+                    _buildSecuritySection(),
+
+                    const SizedBox(height: 26),
+
+                    _buildNotificationSection(),
+
+                    const SizedBox(height: 28),
+
+                    _buildLogoutButton(),
+
+                    const SizedBox(height: 16),
+
+                    Center(
+                      child: Text(
+                        'SIGAP • Sistem Informasi Pengaduan',
+                        style: AppTextStyle.body.copyWith(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
 
-      body: ListView(
-        padding: const EdgeInsets.all(18),
+  // Header halaman profil.
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 30),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary,
+            AppColors.secondary,
+          ],
+        ),
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(28),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Bagian foto dan nama pengguna.
-          Center(
-            child: Column(
+          const Text(
+            'PENGATURAN',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 2,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          const Text(
+            'Profil Saya',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 27,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            _email.isEmpty ? 'Kelola informasi akun Anda' : _email,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const CircleAvatar(
-                  radius: 38,
-                  backgroundColor: AppColors.light,
-                  child: Icon(
-                    Icons.person,
-                    color: AppColors.primary,
-                    size: 40,
+                Icon(
+                  Icons.verified_user_outlined,
+                  color: Colors.white,
+                  size: 16,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Kelola akun SIGAP',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Bagian informasi akun.
+  Widget _buildAccountSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeading(
+          'Informasi Akun',
+          'Perbarui informasi pribadi Anda.',
+        ),
+
+        const SizedBox(height: 16),
+
+        _panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _fieldLabel('Nama Lengkap'),
+
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: _nameController,
+                decoration: _inputDecoration(
+                  'Masukkan nama lengkap',
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              _fieldLabel('Alamat Email'),
+
+              const SizedBox(height: 8),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _email.isEmpty ? '-' : _email,
+                  style: AppTextStyle.body.copyWith(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _saveProfile,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text(
+                    _saving ? 'Menyimpan...' : 'Simpan Profil',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Bagian keamanan akun.
+  Widget _buildSecuritySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeading(
+          'Keamanan',
+          'Lindungi akun dengan password yang aman.',
+        ),
+
+        const SizedBox(height: 16),
+
+        _panel(
+          padding: EdgeInsets.zero,
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 7,
+            ),
+            title: Text(
+              'Ubah Password',
+              style: AppTextStyle.body.copyWith(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              'Ganti password akun Anda',
+              style: AppTextStyle.body.copyWith(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            trailing: const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: AppColors.textSecondary,
+            ),
+            onTap: _changePassword,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Bagian pengaturan notifikasi.
+  Widget _buildNotificationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeading(
+          'Preferensi Notifikasi',
+          'Atur bagaimana aplikasi memberikan pemberitahuan.',
+        ),
+
+        const SizedBox(height: 16),
+
+        _panel(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
+          child: Column(
+            children: [
+              _notificationTile(
+                title: 'Notifikasi',
+                subtitle: 'Pemberitahuan status laporan',
+                value: _notifications,
+                onChanged: _setNotifications,
+              ),
+
+              const Divider(
+                height: 1,
+                color: AppColors.light,
+              ),
+
+              _notificationTile(
+                title: 'Suara',
+                subtitle: 'Suara saat notifikasi diterima',
+                value: _sound,
+                onChanged: _notifications ? _setSound : null,
+              ),
+
+              const Divider(
+                height: 1,
+                color: AppColors.light,
+              ),
+
+              _notificationTile(
+                title: 'Getaran',
+                subtitle: 'Getaran saat notifikasi diterima',
+                value: _vibration,
+                onChanged: _notifications ? _setVibration : null,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Baris pengaturan notifikasi.
+  Widget _notificationTile({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool>? onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyle.body.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 4),
 
                 Text(
-                  _nameController.text,
-                  style: AppTextStyle.heading.copyWith(
-                    fontSize: 18,
+                  subtitle,
+                  style: AppTextStyle.body.copyWith(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(width: 8),
 
-          // Bagian informasi akun.
-          Text(
-            'Informasi Akun',
-            style: AppTextStyle.heading.copyWith(
-              fontSize: 16,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Input untuk mengubah nama pengguna.
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Nama',
-              prefixIcon: Icon(Icons.person_outline),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Tombol untuk mengubah password.
-          OutlinedButton.icon(
-            onPressed: _changePassword,
-            icon: const Icon(Icons.lock_outline),
-            label: const Text('Ubah Password'),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Tombol untuk menyimpan perubahan profil.
-          ElevatedButton(
-            onPressed: _saving ? null : _saveProfile,
-            child: Text(
-              _saving
-                  ? 'Menyimpan...'
-                  : 'Simpan Perubahan',
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          // Bagian pengaturan notifikasi.
-          Text(
-            'Pengaturan Notifikasi',
-            style: AppTextStyle.heading.copyWith(
-              fontSize: 16,
-            ),
-          ),
-
-          // Mengaktifkan atau menonaktifkan notifikasi.
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Aktifkan Notifikasi'),
-            subtitle: const Text(
-              'Pemberitahuan perubahan status laporan',
-            ),
-            value: _notifications,
-            onChanged: (value) async {
-              setState(() => _notifications = value);
-
-              await _settings.setNotifications(value);
-            },
-          ),
-
-          // Mengatur suara notifikasi.
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Suara Notifikasi'),
-            value: _sound,
-            onChanged: _notifications
-                ? (value) async {
-                    setState(() => _sound = value);
-
-                    await _settings.setSound(value);
-                  }
-                : null,
-          ),
-
-          // Mengatur getaran notifikasi.
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Getaran'),
-            value: _vibration,
-            onChanged: _notifications
-                ? (value) async {
-                    setState(() => _vibration = value);
-
-                    await _settings.setVibration(value);
-                  }
-                : null,
-          ),
-
-          const SizedBox(height: 20),
-
-          // Tombol untuk keluar dari akun.
-          OutlinedButton.icon(
-            onPressed: () async {
-              await AuthService().logout();
-
-              Get.offAll(
-                () => const LoginPage(),
-              );
-            },
-            icon: const Icon(
-              Icons.logout,
-              color: AppColors.error,
-            ),
-            label: const Text('Keluar dari Akun'),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: AppColors.primary,
           ),
         ],
+      ),
+    );
+  }
+
+  // Tombol keluar akun.
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: _logout,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.error,
+          side: const BorderSide(
+            color: AppColors.error,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: const Text(
+          'Keluar dari Akun',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Judul dan deskripsi setiap bagian.
+  Widget _sectionHeading(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTextStyle.heading.copyWith(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 4),
+
+        Text(
+          subtitle,
+          style: AppTextStyle.body.copyWith(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Panel untuk mengelompokkan informasi.
+  Widget _panel({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  // Label input.
+  Widget _fieldLabel(String label) {
+    return Text(
+      label,
+      style: AppTextStyle.body.copyWith(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  // Tampilan input.
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: AppTextStyle.body.copyWith(
+        fontSize: 13,
+        color: AppColors.textSecondary,
+      ),
+      filled: true,
+      fillColor: AppColors.background,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 14,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(
+          color: AppColors.primary,
+          width: 1.5,
+        ),
       ),
     );
   }

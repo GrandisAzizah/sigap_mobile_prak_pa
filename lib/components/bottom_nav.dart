@@ -32,11 +32,6 @@ class UserBottomNavbar extends StatelessWidget {
           label: 'Laporan',
         ),
         NavigationDestination(
-          icon: Icon(Icons.notifications_none_rounded),
-          selectedIcon: Icon(Icons.notifications_rounded),
-          label: 'Notifikasi',
-        ),
-        NavigationDestination(
           icon: Icon(Icons.person_outline_rounded),
           selectedIcon: Icon(Icons.person_rounded),
           label: 'Profil',
