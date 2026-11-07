@@ -6,7 +6,7 @@ import '../../services/auth_service.dart';
 import 'register_page.dart';
 import 'forgot_password_page.dart';
 import '../admin/admin_home_page.dart';
-import '../user/user_home_page.dart';
+import '../user/user_main_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -33,7 +33,7 @@ class _LoginPageState extends State<LoginPage> {
       );
       final role = await _auth.getRole();
       Get.offAll(
-        () => role == 'admin' ? const AdminHomePage() : const UserHomePage(),
+        () => role == 'admin' ? const AdminHomePage() : const UserMainPage(),
       );
     } on AuthException catch (e) {
       Get.snackbar('Gagal', e.message, snackPosition: SnackPosition.BOTTOM);

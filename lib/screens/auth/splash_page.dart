@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import '../../services/auth_service.dart';
 import 'login_page.dart';
 import '../admin/admin_home_page.dart';
-import '../user/user_home_page.dart';
+import '../user/user_main_page.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -35,7 +35,7 @@ class _SplashPageState extends State<SplashPage> {
     if (!mounted) return;
 
     Get.offAll(
-      () => role == 'admin' ? const AdminHomePage() : const UserHomePage(),
+      () => role == 'admin' ? const AdminHomePage() : const UserMainPage(),
     );
   }
 
