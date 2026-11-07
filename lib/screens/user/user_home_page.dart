@@ -36,7 +36,13 @@ class UserHomePage extends StatelessWidget {
       }
     } catch (_) {}
 
-    return user.userMetadata?['name']?.toString() ?? 'Pengguna';
+    final metadataName = user.userMetadata?['name']?.toString();
+
+    if (metadataName != null && metadataName.trim().isNotEmpty) {
+      return metadataName.trim();
+    }
+
+    return 'Pengguna';
   }
 
   @override
@@ -61,6 +67,7 @@ class UserHomePage extends StatelessWidget {
                   fontSize: 22,
                 ),
               ),
+
               const SizedBox(height: 8),
 
               // Sapaan berdasarkan nama pengguna.
@@ -70,6 +77,7 @@ class UserHomePage extends StatelessWidget {
                   fontSize: 19,
                 ),
               ),
+
               Text(
                 'Selamat datang kembali!',
                 style: AppTextStyle.label,
@@ -77,76 +85,19 @@ class UserHomePage extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Banner utama untuk mengajak pengguna membuat laporan.
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      AppColors.primary,
-                      AppColors.secondary,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.campaign_rounded,
-                      color: Colors.white,
-                      size: 34,
-                    ),
-                    const SizedBox(height: 12),
-
-                    Text(
-                      'Ada fasilitas kampus yang rusak?',
-                      style: AppTextStyle.heading.copyWith(
-                        color: Colors.white,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-
-                    Text(
-                      'Laporkan kerusakan agar segera ditindaklanjuti.',
-                      style: AppTextStyle.body.copyWith(
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Tombol menuju halaman pembuatan laporan.
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const CreateReportPage(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Buat Laporan'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Banner utama dengan gambar rektorat.
+              _buildBanner(context),
 
               const SizedBox(height: 28),
 
-              // Menu utama dengan tampilan ikon tanpa card.
+              // Menu utama.
               Text(
                 'Menu Utama',
                 style: AppTextStyle.heading.copyWith(
                   fontSize: 17,
                 ),
               ),
+
               const SizedBox(height: 16),
 
               GridView.count(
@@ -157,7 +108,7 @@ class UserHomePage extends StatelessWidget {
                 crossAxisSpacing: 12,
                 childAspectRatio: 1.5,
                 children: [
-                  // Menu untuk membuat laporan baru.
+                  // Menu membuat laporan baru.
                   _menu(
                     Icons.add_circle_outline_rounded,
                     'Buat Laporan',
@@ -172,7 +123,7 @@ class UserHomePage extends StatelessWidget {
                     },
                   ),
 
-                  // Menu untuk melihat laporan pengguna.
+                  // Menu melihat laporan pengguna.
                   _menu(
                     Icons.assignment_outlined,
                     'Laporan Saya',
@@ -180,7 +131,7 @@ class UserHomePage extends StatelessWidget {
                     onOpenReports,
                   ),
 
-                  // Menu panduan penggunaan aplikasi.
+                  // Menu panduan aplikasi.
                   _menu(
                     Icons.menu_book_outlined,
                     'Panduan',
@@ -188,7 +139,7 @@ class UserHomePage extends StatelessWidget {
                     () => _showGuide(context),
                   ),
 
-                  // Menu untuk menghubungi admin.
+                  // Menu kontak admin.
                   _menu(
                     Icons.support_agent_rounded,
                     'Kontak Admin',
@@ -206,6 +157,123 @@ class UserHomePage extends StatelessWidget {
     );
   }
 
+  // Banner dengan background gambar rektorat.
+  Widget _buildBanner(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 230,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Gambar rektorat sebagai background.
+          Image.asset(
+            'assets/images/rektorat.png',
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: AppColors.primary,
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.image_not_supported_outlined,
+                  color: Colors.white,
+                  size: 35,
+                ),
+              );
+            },
+          ),
+
+          // Overlay gradasi agar teks terbaca.
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.95),
+                  AppColors.primary.withValues(alpha: 0.65),
+                  AppColors.secondary.withValues(alpha: 0.25),
+                ],
+              ),
+            ),
+          ),
+
+          // Konten banner.
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'SIGAP',
+                  style: AppTextStyle.heading.copyWith(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    letterSpacing: 2,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  'Ada fasilitas kampus yang rusak?',
+                  style: AppTextStyle.heading.copyWith(
+                    color: Colors.white,
+                    fontSize: 19,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  'Laporkan kerusakan agar segera ditindaklanjuti.',
+                  style: AppTextStyle.body.copyWith(
+                    color: Colors.white,
+                    fontSize: 12,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Tombol menuju halaman pembuatan laporan.
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CreateReportPage(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.add,
+                    size: 18,
+                  ),
+                  label: const Text('Buat Laporan'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.white,
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Komponen menu minimalis tanpa card.
   Widget _menu(
     IconData icon,
@@ -219,7 +287,7 @@ class UserHomePage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Ikon menggunakan latar berwarna lembut.
+          // Ikon dengan latar berwarna lembut.
           Container(
             width: 56,
             height: 56,
@@ -233,6 +301,7 @@ class UserHomePage extends StatelessWidget {
               size: 28,
             ),
           ),
+
           const SizedBox(height: 9),
 
           // Nama menu.
@@ -243,9 +312,10 @@ class UserHomePage extends StatelessWidget {
               fontSize: 13,
             ),
           ),
+
           const SizedBox(height: 4),
 
-          // Keterangan singkat menu.
+          // Keterangan menu.
           Text(
             subtitle,
             textAlign: TextAlign.center,
@@ -278,6 +348,7 @@ class UserHomePage extends StatelessWidget {
               Text(
                 'Pilih menu Buat Laporan untuk melaporkan kerusakan fasilitas kampus.',
               ),
+
               SizedBox(height: 12),
 
               Text(
@@ -289,6 +360,7 @@ class UserHomePage extends StatelessWidget {
               Text(
                 'Lengkapi informasi kerusakan, lokasi, kategori, dan foto pendukung.',
               ),
+
               SizedBox(height: 12),
 
               Text(
@@ -300,6 +372,7 @@ class UserHomePage extends StatelessWidget {
               Text(
                 'Buka menu Laporan Saya untuk melihat perkembangan status laporan.',
               ),
+
               SizedBox(height: 12),
 
               Text(
