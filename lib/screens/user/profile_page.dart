@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app_styles.dart';
 import '../../services/settings_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import '../auth/login_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -26,6 +27,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _vibration = true;
   bool _loading = true;
   bool _saving = false;
+  bool _testingNotification = false;
 
   @override
   void initState() {
@@ -106,7 +108,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // Menampilkan dialog untuk mengganti password.
+  // Mengubah password akun.
   Future<void> _changePassword() async {
     final controller = TextEditingController();
 
@@ -164,10 +166,46 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // Menguji notifikasi lokal dengan jeda 10 detik.
+  Future<void> _testNotification() async {
+    if (!_notifications) {
+      _showMessage('Aktifkan notifikasi terlebih dahulu.');
+      return;
+    }
+
+    if (_testingNotification) return;
+
+    setState(() => _testingNotification = true);
+
+    try {
+      await NotificationService.scheduleTestNotification(
+        soundEnabled: _sound,
+        vibrationEnabled: _vibration,
+      );
+
+      if (!mounted) return;
+
+      _showMessage(
+        'Notifikasi dijadwalkan. Tutup aplikasi dan tunggu 10 detik.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('Gagal menjadwalkan notifikasi: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _testingNotification = false);
+      }
+    }
+  }
+
   // Mengatur preferensi notifikasi.
   Future<void> _setNotifications(bool value) async {
     setState(() => _notifications = value);
     await _settings.setNotifications(value);
+
+    if (!value) {
+      await NotificationService.cancelTestNotification();
+    }
   }
 
   Future<void> _setSound(bool value) async {
@@ -193,7 +231,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // Menampilkan pesan.
+  // Menampilkan pesan kepada pengguna.
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
@@ -298,9 +336,7 @@ class _ProfilePageState extends State<ProfilePage> {
               letterSpacing: 2,
             ),
           ),
-
           const SizedBox(height: 12),
-
           const Text(
             'Profil Saya',
             style: TextStyle(
@@ -309,9 +345,7 @@ class _ProfilePageState extends State<ProfilePage> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 8),
-
           Text(
             _email.isEmpty ? 'Kelola informasi akun Anda' : _email,
             style: const TextStyle(
@@ -319,9 +353,7 @@ class _ProfilePageState extends State<ProfilePage> {
               fontSize: 13,
             ),
           ),
-
           const SizedBox(height: 20),
-
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: 14,
@@ -365,30 +397,22 @@ class _ProfilePageState extends State<ProfilePage> {
           'Informasi Akun',
           'Perbarui informasi pribadi Anda.',
         ),
-
         const SizedBox(height: 16),
-
         _panel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _fieldLabel('Nama Lengkap'),
-
               const SizedBox(height: 8),
-
               TextField(
                 controller: _nameController,
                 decoration: _inputDecoration(
                   'Masukkan nama lengkap',
                 ),
               ),
-
               const SizedBox(height: 18),
-
               _fieldLabel('Alamat Email'),
-
               const SizedBox(height: 8),
-
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -404,9 +428,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 18),
-
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -441,9 +463,7 @@ class _ProfilePageState extends State<ProfilePage> {
           'Keamanan',
           'Lindungi akun dengan password yang aman.',
         ),
-
         const SizedBox(height: 16),
-
         _panel(
           padding: EdgeInsets.zero,
           child: ListTile(
@@ -477,16 +497,15 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Bagian pengaturan notifikasi.
+  // Bagian preferensi dan tes notifikasi.
   Widget _buildNotificationSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionHeading(
           'Preferensi Notifikasi',
-          'Atur bagaimana aplikasi memberikan pemberitahuan.',
+          'Atur dan uji pemberitahuan aplikasi.',
         ),
-
         const SizedBox(height: 16),
 
         _panel(
@@ -502,24 +521,20 @@ class _ProfilePageState extends State<ProfilePage> {
                 value: _notifications,
                 onChanged: _setNotifications,
               ),
-
               const Divider(
                 height: 1,
                 color: AppColors.light,
               ),
-
               _notificationTile(
                 title: 'Suara',
                 subtitle: 'Suara saat notifikasi diterima',
                 value: _sound,
                 onChanged: _notifications ? _setSound : null,
               ),
-
               const Divider(
                 height: 1,
                 color: AppColors.light,
               ),
-
               _notificationTile(
                 title: 'Getaran',
                 subtitle: 'Getaran saat notifikasi diterima',
@@ -527,6 +542,58 @@ class _ProfilePageState extends State<ProfilePage> {
                 onChanged: _notifications ? _setVibration : null,
               ),
             ],
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        // Tombol untuk menguji notifikasi di perangkat.
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: (!_notifications || _testingNotification)
+                ? null
+                : _testNotification,
+            icon: _testingNotification
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.white,
+                    ),
+                  )
+                : const Icon(
+                    Icons.notifications_active_outlined,
+                    size: 19,
+                  ),
+            label: Text(
+              _testingNotification
+                  ? 'Menjadwalkan...'
+                  : 'Tes Notifikasi',
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+              disabledBackgroundColor: AppColors.light,
+              disabledForegroundColor: AppColors.textSecondary,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        Text(
+          'Notifikasi percobaan akan muncul 10 detik setelah tombol ditekan. '
+          'Kamu bisa menutup aplikasi untuk menguji notifikasi latar belakang.',
+          style: AppTextStyle.body.copyWith(
+            fontSize: 11,
+            color: AppColors.textSecondary,
           ),
         ),
       ],
@@ -555,9 +622,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-
                 const SizedBox(height: 4),
-
                 Text(
                   subtitle,
                   style: AppTextStyle.body.copyWith(
@@ -568,9 +633,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
           ),
-
           const SizedBox(width: 8),
-
           Switch(
             value: value,
             onChanged: onChanged,
@@ -619,9 +682,7 @@ class _ProfilePageState extends State<ProfilePage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
         const SizedBox(height: 4),
-
         Text(
           subtitle,
           style: AppTextStyle.body.copyWith(
