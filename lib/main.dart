@@ -1,13 +1,19 @@
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'app_styles.dart';
-import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
+import 'screens/auth/splash_page.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SIgapApp());
+  await dotenv.load(fileName: '.env');
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+  );
+  runApp(const MyApp());
 }
 
 class SIgapApp extends StatelessWidget {
@@ -15,18 +21,10 @@ class SIgapApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SIgap',
+    return GetMaterialApp(
+      title: 'SIGAP',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-
-      // Halaman pertama saat aplikasi dibuka
-      initialRoute: '/',
-
-      routes: {
-        '/': (context) => const SplashScreen(),
-        '/login': (context) => const LoginScreen(),
-      },
+      home: const SplashPage(),
     );
   }
 }
