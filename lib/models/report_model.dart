@@ -22,31 +22,51 @@ class ReportModel {
   });
 
   factory ReportModel.fromMap(Map<String, dynamic> map) {
-    final historyRows = (map['report_status_history'] as List<dynamic>?) ?? [];
+    final historyRows =
+        (map['report_status_history'] as List<dynamic>?) ?? [];
+
+    final photoRows =
+        (map['report_photos'] as List<dynamic>?) ?? [];
+
     return ReportModel(
-      id: map['id'].toString(),
+      id: map['id']?.toString() ?? '',
       reportCode: map['report_code']?.toString() ?? '-',
-      category: map['category']?.toString() ?? '-',
-      locationName: map['location_name']?.toString() ?? '-',
-      description: map['description']?.toString() ?? '-',
-      status: map['status']?.toString() ?? 'Menunggu',
-      createdAt: DateTime.tryParse(map['created_at']?.toString() ?? '') ?? DateTime.now(),
-      photoUrls: ((map['photo_urls'] as List<dynamic>?) ?? []).map((e) => e.toString()).toList(),
-      history: historyRows.map((e) => ReportStatusHistory.fromMap(e as Map<String, dynamic>)).toList(),
+      category: map['category_name']?.toString() ?? '-',
+      locationName: map['building_name']?.toString() ?? '-',
+      description: map['report_detail']?.toString() ?? '-',
+      status: map['status_reports']?.toString() ?? 'menunggu',
+      createdAt: DateTime.tryParse(
+            map['created_at']?.toString() ?? '',
+          ) ??
+          DateTime.now(),
+      photoUrls: photoRows
+          .map((item) => item['photo_url']?.toString() ?? '')
+          .where((url) => url.isNotEmpty)
+          .toList(),
+      history: historyRows
+          .map(
+            (item) => ReportStatusHistory.fromMap(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList(),
     );
   }
 
   Map<String, dynamic> toCacheMap() => {
-    'id': id,
-    'report_code': reportCode,
-    'category': category,
-    'location_name': locationName,
-    'description': description,
-    'status': status,
-    'created_at': createdAt.toIso8601String(),
-    'photo_urls': photoUrls,
-    'report_status_history': history.map((e) => e.toMap()).toList(),
-  };
+        'id': id,
+        'report_code': reportCode,
+        'category_name': category,
+        'building_name': locationName,
+        'report_detail': description,
+        'status_reports': status,
+        'created_at': createdAt.toIso8601String(),
+        'report_photos': photoUrls
+            .map((url) => {'photo_url': url})
+            .toList(),
+        'report_status_history':
+            history.map((item) => item.toMap()).toList(),
+      };
 }
 
 class ReportStatusHistory {
@@ -60,17 +80,22 @@ class ReportStatusHistory {
     required this.changedAt,
   });
 
-  factory ReportStatusHistory.fromMap(Map<String, dynamic> map) {
+  factory ReportStatusHistory.fromMap(
+    Map<String, dynamic> map,
+  ) {
     return ReportStatusHistory(
       status: map['status']?.toString() ?? '-',
       note: map['note']?.toString(),
-      changedAt: DateTime.tryParse(map['changed_at']?.toString() ?? '') ?? DateTime.now(),
+      changedAt: DateTime.tryParse(
+            map['created_at']?.toString() ?? '',
+          ) ??
+          DateTime.now(),
     );
   }
 
   Map<String, dynamic> toMap() => {
-    'status': status,
-    'note': note,
-    'changed_at': changedAt.toIso8601String(),
-  };
+        'status': status,
+        'note': note,
+        'created_at': changedAt.toIso8601String(),
+      };
 }
