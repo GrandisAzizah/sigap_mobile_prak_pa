@@ -1,3 +1,4 @@
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -27,96 +28,108 @@ class _CreateReportPageState extends State<CreateReportPage> {
   List<CampusModel> _campuses = [];
   List<BuildingModel> _buildings = [];
 
-  String? _categoryId;
+  Map<String, dynamic>? _selectedCategory;
   CampusModel? _selectedCampus;
   BuildingModel? _selectedBuilding;
 
   final List<XFile> _photos = [];
   final Map<XFile, Future<Uint8List>> _photoBytes = {};
 
-  bool _loading = true;
+  bool _loadingCategories = true;
+  bool _loadingCampuses = true;
   bool _loadingBuildings = false;
   bool _sending = false;
 
-  String? _loadError;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadFormData();
+    _loadInitialData();
   }
 
-  Future<void> _loadFormData() async {
+  // Mengambil kategori dan daftar kampus dari Supabase.
+  Future<void> _loadInitialData() async {
+    await Future.wait([
+      _loadCategories(),
+      _loadCampuses(),
+    ]);
+  }
+
+  Future<void> _loadCategories() async {
     try {
-      final categories = await _reportService.getCategories();
-      final campuses = await _locationService.getCampuses();
+      final data = await _reportService.getCategories();
 
       if (!mounted) return;
 
       setState(() {
-        _categories = categories;
-        _campuses = campuses;
-        _loading = false;
-
-        if (categories.isEmpty) {
-          _loadError = 'Data kategori belum tersedia.';
-        } else if (campuses.isEmpty) {
-          _loadError = 'Data kampus belum tersedia.';
-        }
+        _categories = data;
+        _loadingCategories = false;
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        _loading = false;
-        _loadError = e.toString();
+        _loadingCategories = false;
+        _errorMessage = 'Gagal mengambil kategori: $e';
       });
     }
   }
 
-  Future<void> _onCampusChanged(CampusModel? campus) async {
-    setState(() {
-      _selectedCampus = campus;
-      _selectedBuilding = null;
-      _buildings = [];
-      _loadingBuildings = campus != null;
-    });
-
-    if (campus == null) return;
-
+  Future<void> _loadCampuses() async {
     try {
-      final buildings =
-          await _locationService.getBuildings(campus.id);
+      final data = await _locationService.getCampuses();
 
       if (!mounted) return;
 
       setState(() {
-        _buildings = buildings;
+        _campuses = data;
+        _loadingCampuses = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _loadingCampuses = false;
+        _errorMessage = 'Gagal mengambil data kampus: $e';
+      });
+    }
+  }
+
+  // Mengambil gedung berdasarkan kampus yang dipilih.
+  Future<void> _loadBuildings(String campusId) async {
+    setState(() {
+      _loadingBuildings = true;
+      _buildings = [];
+      _selectedBuilding = null;
+    });
+
+    try {
+      final data = await _locationService.getBuildings(campusId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _buildings = data;
+        _loadingBuildings = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
         _loadingBuildings = false;
       });
 
-      if (buildings.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Belum ada gedung pada kampus ini.'),
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() => _loadingBuildings = false);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mengambil data gedung: $e'),
-        ),
-      );
+      _showMessage('Gagal mengambil data gedung: $e');
     }
   }
 
+  // Memilih foto dari galeri.
   Future<void> _addPhoto() async {
-    if (_photos.length >= 3) return;
+    if (_photos.length >= 3) {
+      _showMessage('Foto laporan maksimal 3.');
+      return;
+    }
 
     try {
       final image = await _picker.pickImage(
@@ -131,14 +144,11 @@ class _CreateReportPageState extends State<CreateReportPage> {
         });
       }
     } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memilih foto: $e')),
-      );
+      _showMessage('Gagal memilih foto: $e');
     }
   }
 
+  // Menghapus foto yang dipilih.
   void _removePhoto(XFile photo) {
     setState(() {
       _photos.remove(photo);
@@ -146,55 +156,59 @@ class _CreateReportPageState extends State<CreateReportPage> {
     });
   }
 
+  // Mengirim laporan ke Supabase.
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedBuilding == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pilih gedung terlebih dahulu.'),
-        ),
-      );
+    if (_selectedCategory == null ||
+        _selectedCampus == null ||
+        _selectedBuilding == null) {
+      _showMessage('Lengkapi kategori, kampus, dan gedung.');
       return;
     }
 
-    final category = _categories.firstWhere(
-      (item) => item['id'].toString() == _categoryId,
-    );
-
-    setState(() => _sending = true);
+    setState(() {
+      _sending = true;
+    });
 
     try {
       await _reportService.createReport(
-        categoryId: _categoryId!,
-        categoryName: category['name'].toString(),
+        categoryId: _selectedCategory!['id'].toString(),
+        categoryName: _selectedCategory!['name'].toString(),
         buildingId: _selectedBuilding!.id,
         description: _description.text.trim(),
-        photos: _photos,
+        photos: List<XFile>.from(_photos),
       );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Laporan berhasil dikirim.'),
-        ),
-      );
+      _showMessage('Laporan berhasil dikirim.');
 
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mengirim laporan: $e'),
-        ),
+      _showMessage(
+        e.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
       if (mounted) {
-        setState(() => _sending = false);
+        setState(() {
+          _sending = false;
+        });
       }
     }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -210,262 +224,265 @@ class _CreateReportPageState extends State<CreateReportPage> {
         title: const Text('Buat Laporan'),
         centerTitle: true,
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _loadError != null
-              ? _buildLoadError()
-              : Form(
-                  key: _formKey,
-                  child: ListView(
-                    padding: const EdgeInsets.all(18),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            // Kategori kerusakan.
+            _label('Kategori Kerusakan*'),
+
+            if (_loadingCategories)
+              const LinearProgressIndicator()
+            else
+              DropdownButtonFormField<String>(
+                value: _selectedCategory?['id']?.toString(),
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  hintText: 'Pilih kategori kerusakan',
+                ),
+                items: _categories.map((category) {
+                  return DropdownMenuItem<String>(
+                    value: category['id'].toString(),
+                    child: Text(category['name'].toString()),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = _categories.firstWhere(
+                      (category) =>
+                          category['id'].toString() == value,
+                    );
+                  });
+                },
+                validator: (value) {
+                  return value == null
+                      ? 'Pilih kategori kerusakan.'
+                      : null;
+                },
+              ),
+
+            const SizedBox(height: 18),
+
+            // Pilihan kampus.
+            _label('Kampus*'),
+
+            if (_loadingCampuses)
+              const LinearProgressIndicator()
+            else
+              DropdownButtonFormField<String>(
+                value: _selectedCampus?.id,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  hintText: 'Pilih kampus',
+                ),
+                items: _campuses.map((campus) {
+                  return DropdownMenuItem<String>(
+                    value: campus.id,
+                    child: Text(
+                      campus.name,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+
+                  final campus = _campuses.firstWhere(
+                    (item) => item.id == value,
+                  );
+
+                  setState(() {
+                    _selectedCampus = campus;
+                    _selectedBuilding = null;
+                    _buildings = [];
+                  });
+
+                  _loadBuildings(campus.id);
+                },
+                validator: (value) {
+                  return value == null ? 'Pilih kampus.' : null;
+                },
+              ),
+
+            const SizedBox(height: 18),
+
+            // Pilihan gedung.
+            _label('Gedung*'),
+
+            if (_loadingBuildings)
+              const LinearProgressIndicator()
+            else
+              DropdownButtonFormField<String>(
+                value: _selectedBuilding?.id,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  hintText: 'Pilih gedung',
+                ),
+                items: _buildings.map((building) {
+                  return DropdownMenuItem<String>(
+                    value: building.id,
+                    child: Text(
+                      building.faculty == null ||
+                              building.faculty!.isEmpty
+                          ? building.name
+                          : '${building.name} - ${building.faculty}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+                onChanged: _selectedCampus == null
+                    ? null
+                    : (value) {
+                        if (value == null) return;
+
+                        setState(() {
+                          _selectedBuilding = _buildings.firstWhere(
+                            (item) => item.id == value,
+                          );
+                        });
+                      },
+                validator: (value) {
+                  return value == null ? 'Pilih gedung.' : null;
+                },
+              ),
+
+            const SizedBox(height: 18),
+
+            // Deskripsi kerusakan.
+            _label('Deskripsi*'),
+
+            TextFormField(
+              controller: _description,
+              maxLines: 5,
+              maxLength: 1000,
+              decoration: const InputDecoration(
+                hintText: 'Jelaskan kerusakan yang ditemukan...',
+                alignLabelWithHint: true,
+              ),
+              validator: (value) {
+                if (value == null || value.trim().length < 10) {
+                  return 'Deskripsi minimal 10 karakter.';
+                }
+
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 18),
+
+            // Foto laporan.
+            _label('Foto (maks. 3)'),
+
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                ..._photos.map((photo) {
+                  return Stack(
                     children: [
-                      _label('Kategori Kerusakan*'),
-                      DropdownButtonFormField<String>(
-                        value: _categoryId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          hintText: 'Pilih kategori',
-                        ),
-                        items: _categories.map((category) {
-                          return DropdownMenuItem<String>(
-                            value: category['id'].toString(),
-                            child: Text(
-                              category['name'].toString(),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() => _categoryId = value);
-                        },
-                        validator: (value) {
-                          return value == null
-                              ? 'Pilih kategori kerusakan.'
-                              : null;
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      _label('Kampus*'),
-                      DropdownButtonFormField<CampusModel>(
-                        value: _selectedCampus,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          hintText: 'Pilih kampus',
-                        ),
-                        items: _campuses.map((campus) {
-                          return DropdownMenuItem(
-                            value: campus,
-                            child: Text(campus.name),
-                          );
-                        }).toList(),
-                        onChanged: _onCampusChanged,
-                        validator: (value) {
-                          return value == null
-                              ? 'Pilih kampus.'
-                              : null;
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      _label('Gedung*'),
-                      if (_loadingBuildings)
-                        const LinearProgressIndicator()
-                      else
-                        DropdownButtonFormField<BuildingModel>(
-                          value: _selectedBuilding,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            hintText: 'Pilih gedung',
-                          ),
-                          items: _buildings.map((building) {
-                            return DropdownMenuItem(
-                              value: building,
-                              child: Text(
-                                building.displayName,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: _selectedCampus == null
-                              ? null
-                              : (value) {
-                                  setState(() {
-                                    _selectedBuilding = value;
-                                  });
-                                },
-                          validator: (value) {
-                            return value == null
-                                ? 'Pilih gedung.'
-                                : null;
-                          },
-                        ),
-
-                      const SizedBox(height: 16),
-
-                      _label('Deskripsi*'),
-                      TextFormField(
-                        controller: _description,
-                        maxLines: 5,
-                        decoration: const InputDecoration(
-                          hintText:
-                              'Jelaskan kerusakan yang ditemukan...',
-                        ),
-                        validator: (value) {
-                          if (value == null ||
-                              value.trim().length < 10) {
-                            return 'Deskripsi minimal 10 karakter.';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      _label('Foto (maks. 3)'),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          ..._photos.map((photo) {
-                            return Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                  child: FutureBuilder<Uint8List>(
-                                    future: _photoBytes[photo],
-                                    builder: (context, snapshot) {
-                                      if (snapshot.connectionState ==
-                                          ConnectionState.waiting) {
-                                        return Container(
-                                          width: 76,
-                                          height: 76,
-                                          color: AppColors.light,
-                                          child: const Center(
-                                            child:
-                                                CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          ),
-                                        );
-                                      }
-
-                                      if (snapshot.hasError ||
-                                          !snapshot.hasData) {
-                                        return Container(
-                                          width: 76,
-                                          height: 76,
-                                          color: AppColors.light,
-                                          child: const Icon(
-                                            Icons.broken_image_outlined,
-                                            color: AppColors.error,
-                                          ),
-                                        );
-                                      }
-
-                                      return Image.memory(
-                                        snapshot.data!,
-                                        width: 76,
-                                        height: 76,
-                                        fit: BoxFit.cover,
-                                      );
-                                    },
-                                  ),
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: InkWell(
-                                    onTap: () => _removePhoto(photo),
-                                    child: const CircleAvatar(
-                                      radius: 11,
-                                      child: Icon(
-                                        Icons.close,
-                                        size: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          }),
-
-                          if (_photos.length < 3)
-                            InkWell(
-                              onTap: _addPhoto,
-                              child: Container(
-                                width: 76,
-                                height: 76,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: AppColors.light,
-                                  ),
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.add,
-                                  color: AppColors.primary,
-                                  size: 30,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 35),
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _sending ? null : _submit,
-                          child: _sending
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: FutureBuilder<Uint8List>(
+                          future: _photoBytes[photo],
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return Container(
+                                width: 90,
+                                height: 90,
+                                color: AppColors.light,
+                                child: const Center(
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                   ),
-                                )
-                              : const Text('Kirim Laporan'),
+                                ),
+                              );
+                            }
+
+                            if (snapshot.hasError ||
+                                !snapshot.hasData) {
+                              return Container(
+                                width: 90,
+                                height: 90,
+                                color: AppColors.light,
+                                child: const Icon(
+                                  Icons.broken_image_outlined,
+                                  color: AppColors.error,
+                                ),
+                              );
+                            }
+
+                            return Image.memory(
+                              snapshot.data!,
+                              width: 90,
+                              height: 90,
+                              fit: BoxFit.cover,
+                            );
+                          },
+                        ),
+                      ),
+
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: InkWell(
+                          onTap: () => _removePhoto(photo),
+                          child: const CircleAvatar(
+                            radius: 12,
+                            backgroundColor: AppColors.light,
+                            child: Icon(
+                              Icons.close,
+                              size: 15,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                ),
-    );
-  }
+                  );
+                }),
 
-  Widget _buildLoadError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              color: AppColors.error,
-              size: 42,
+                if (_photos.length < 3)
+                  InkWell(
+                    onTap: _sending ? null : _addPhoto,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: AppColors.light,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.add,
+                        color: AppColors.primary,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              _loadError!,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _loading = true;
-                  _loadError = null;
-                });
-                _loadFormData();
-              },
-              icon: const Icon(Icons.refresh),
-              label: const Text('Coba lagi'),
+
+            const SizedBox(height: 30),
+
+            // Tombol kirim.
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _sending ? null : _submit,
+                child: _sending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('Kirim Laporan'),
+              ),
             ),
           ],
         ),
@@ -473,6 +490,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
     );
   }
 
+  // Label setiap bagian formulir.
   Widget _label(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

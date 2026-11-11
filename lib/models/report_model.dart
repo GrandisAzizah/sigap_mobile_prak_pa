@@ -1,3 +1,4 @@
+
 class ReportModel {
   final String id;
   final String reportCode;
@@ -31,25 +32,32 @@ class ReportModel {
     return ReportModel(
       id: map['id']?.toString() ?? '',
       reportCode: map['report_code']?.toString() ?? '-',
+
+      // Membaca nama kategori.
       category: map['category_name']?.toString() ?? '-',
+
+      // Membaca nama gedung dan kampus.
       locationName: map['building_name']?.toString() ?? '-',
+
       description: map['report_detail']?.toString() ?? '-',
+
       status: map['status_reports']?.toString() ?? 'menunggu',
+
       createdAt: DateTime.tryParse(
             map['created_at']?.toString() ?? '',
           ) ??
           DateTime.now(),
+
       photoUrls: photoRows
           .map((item) => item['photo_url']?.toString() ?? '')
           .where((url) => url.isNotEmpty)
           .toList(),
-      history: historyRows
-          .map(
-            (item) => ReportStatusHistory.fromMap(
-              Map<String, dynamic>.from(item),
-            ),
-          )
-          .toList(),
+
+      history: historyRows.map((item) {
+        return ReportStatusHistory.fromMap(
+          Map<String, dynamic>.from(item),
+        );
+      }).toList(),
     );
   }
 

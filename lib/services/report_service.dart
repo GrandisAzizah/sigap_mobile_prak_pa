@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 
 import 'package:image_picker/image_picker.dart';
@@ -9,24 +10,20 @@ import '../models/report_model.dart';
 class ReportService {
   final SupabaseClient _db = Supabase.instance.client;
 
-  static const _cacheKey = 'sigap_my_reports_cache';
+  static const String _cacheKey = 'sigap_my_reports_cache';
+  static const String _photoBucket = 'report-photos';
 
-  // Sesuaikan dengan nama bucket Storage di Supabase.
-  static const _photoBucket = 'report-photos';
-
-  // Mengambil kategori laporan.
+  // Mengambil kategori dari database.
   Future<List<Map<String, dynamic>>> getCategories() async {
-    final rows = await _db
+    final response = await _db
         .from('categories')
         .select('id, name')
         .order('name');
 
-    return (rows as List)
-        .map((row) => Map<String, dynamic>.from(row))
-        .toList();
+    return List<Map<String, dynamic>>.from(response);
   }
 
-  // Membuat laporan baru.
+  // Membuat laporan dan mengunggah foto.
   Future<void> createReport({
     required String categoryId,
     required String categoryName,
@@ -37,65 +34,64 @@ class ReportService {
     final user = _db.auth.currentUser;
 
     if (user == null) {
-      throw Exception('Sesi pengguna sudah berakhir.');
+      throw Exception('Pengguna belum login.');
     }
 
-    // Menyimpan laporan ke database.
-    final inserted = await _db
+    if (photos.length > 3) {
+      throw Exception('Foto maksimal 3.');
+    }
+
+    // Simpan laporan.
+    final reportResponse = await _db
         .from('reports')
         .insert({
           'user_id': user.id,
           'category_id': categoryId,
           'building_id': buildingId,
           'title': 'Laporan kerusakan $categoryName',
-          'report_detail': description.trim(),
-          // severity dan status_reports menggunakan default database.
+          'report_detail': description,
         })
         .select('id')
         .single();
 
-    final reportId = inserted['id'].toString();
+    final reportId = reportResponse['id'].toString();
 
-    // Mengunggah foto ke Supabase Storage.
-    final photoRows = <Map<String, dynamic>>[];
+    // Upload foto ke Storage dan simpan URL.
+    for (final photo in photos) {
+      try {
+        final bytes = await photo.readAsBytes();
 
-    for (var i = 0; i < photos.length; i++) {
-      final photo = photos[i];
-      final bytes = await photo.readAsBytes();
+        final extension = photo.name.contains('.')
+            ? photo.name.split('.').last.toLowerCase()
+            : 'jpg';
 
-      final extension = photo.name.contains('.')
-          ? photo.name.split('.').last.toLowerCase()
-          : 'jpg';
+        final fileName =
+            '${DateTime.now().microsecondsSinceEpoch}.$extension';
 
-      final safeExtension =
-          RegExp(r'^[a-z0-9]+$').hasMatch(extension)
-              ? extension
-              : 'jpg';
+        final path = '${user.id}/$reportId/$fileName';
 
-      final path =
-          '$reportId/${DateTime.now().microsecondsSinceEpoch}_$i.$safeExtension';
+        await _db.storage.from(_photoBucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+          ),
+        );
 
-      await _db.storage.from(_photoBucket).uploadBinary(
-            path,
-            bytes,
-            fileOptions: FileOptions(
-              upsert: false,
-              contentType: _getContentType(safeExtension),
-            ),
-          );
+        final photoUrl = _db.storage
+            .from(_photoBucket)
+            .getPublicUrl(path);
 
-      final photoUrl =
-          _db.storage.from(_photoBucket).getPublicUrl(path);
-
-      photoRows.add({
-        'report_id': reportId,
-        'photo_url': photoUrl,
-      });
-    }
-
-    // Menyimpan URL foto ke tabel report_photos.
-    if (photoRows.isNotEmpty) {
-      await _db.from('report_photos').insert(photoRows);
+        await _db.from('report_photos').insert({
+          'report_id': reportId,
+          'photo_url': photoUrl,
+        });
+      } catch (e) {
+        throw Exception(
+          'Laporan tersimpan, tetapi foto gagal diunggah. '
+          'ID laporan: $reportId. Detail: $e',
+        );
+      }
     }
 
     await getMyReports();
@@ -107,12 +103,126 @@ class ReportService {
         return 'image/png';
       case 'webp':
         return 'image/webp';
+      case 'gif':
+        return 'image/gif';
       default:
         return 'image/jpeg';
     }
   }
 
-  // Mengambil laporan milik pengguna.
+  // Mengambil satu laporan beserta data relasinya.
+  Future<Map<String, dynamic>> _fetchReport(String id) async {
+    final report = await _db
+        .from('reports')
+        .select()
+        .eq('id', id)
+        .single();
+
+    // Ambil kategori.
+    Map<String, dynamic>? category;
+
+    if (report['category_id'] != null) {
+      category = await _db
+          .from('categories')
+          .select('id, name')
+          .eq('id', report['category_id'])
+          .maybeSingle();
+    }
+
+    // Ambil gedung.
+    Map<String, dynamic>? building;
+    Map<String, dynamic>? campus;
+
+    if (report['building_id'] != null) {
+      building = await _db
+          .from('buildings')
+          .select('id, name, faculty, campus_id')
+          .eq('id', report['building_id'])
+          .maybeSingle();
+
+      // Ambil kampus.
+      if (building != null && building['campus_id'] != null) {
+        campus = await _db
+            .from('campus')
+            .select('id, name_campus')
+            .eq('id', building['campus_id'])
+            .maybeSingle();
+      }
+    }
+
+    // Ambil foto.
+    final photos = await _db
+        .from('report_photos')
+        .select('photo_url')
+        .eq('report_id', id);
+
+    // Ambil riwayat status.
+    final history = await _db
+        .from('report_status_history')
+        .select('status, note, created_at')
+        .eq('report_id', id)
+        .order('created_at');
+
+    return {
+      'report': report,
+      'category': category,
+      'building': building,
+      'campus': campus,
+      'photos': photos,
+      'history': history,
+    };
+  }
+
+  // Mengubah data hasil query menjadi ReportModel.
+  ReportModel _mapReport(Map<String, dynamic> result) {
+    final report = Map<String, dynamic>.from(result['report']);
+
+    final category = result['category'];
+    final building = result['building'];
+    final campus = result['campus'];
+
+    final categoryName = category is Map
+        ? category['name']?.toString() ?? '-'
+        : '-';
+
+    final buildingName = building is Map
+        ? building['name']?.toString() ?? '-'
+        : '-';
+
+    final campusName = campus is Map
+        ? campus['name_campus']?.toString() ?? ''
+        : '';
+
+    final locationName = campusName.isEmpty
+        ? buildingName
+        : '$buildingName - $campusName';
+
+    final photos = (result['photos'] as List?) ?? [];
+    final history = (result['history'] as List?) ?? [];
+
+    // PENTING:
+    // Key di bawah harus sesuai dengan ReportModel.
+    final mappedData = {
+      ...report,
+      'category_name': categoryName,
+      'building_name': locationName,
+      'report_photos': photos,
+      'report_status_history': history,
+    };
+
+    return ReportModel.fromMap(mappedData);
+  }
+
+  // Mengambil detail satu laporan.
+  Future<ReportModel> getReportDetail(String id) async {
+    final result = await _fetchReport(id);
+
+    final report = _mapReport(result);
+
+    return report;
+  }
+
+  // Mengambil semua laporan milik pengguna.
   Future<List<ReportModel>> getMyReports() async {
     final user = _db.auth.currentUser;
 
@@ -120,49 +230,18 @@ class ReportService {
 
     final rows = await _db
         .from('reports')
-        .select('''
-          *,
-          report_status_history(status, note, created_at),
-          report_photos(photo_url)
-        ''')
+        .select('id')
         .eq('user_id', user.id)
         .order('created_at', ascending: false);
 
-    final reports = <ReportModel>[];
+    final List<ReportModel> reports = [];
 
-    for (final item in (rows as List)) {
-      final row = Map<String, dynamic>.from(item);
+    for (final row in rows) {
+      final result = await _fetchReport(
+        row['id'].toString(),
+      );
 
-      final categoryId = row['category_id']?.toString();
-      final buildingId = row['building_id']?.toString();
-
-      if (categoryId != null) {
-        final category = await _db
-            .from('categories')
-            .select('name')
-            .eq('id', categoryId)
-            .maybeSingle();
-
-        row['category_name'] =
-            category?['name']?.toString() ?? '-';
-      } else {
-        row['category_name'] = '-';
-      }
-
-      if (buildingId != null) {
-        final building = await _db
-            .from('buildings')
-            .select('name')
-            .eq('id', buildingId)
-            .maybeSingle();
-
-        row['building_name'] =
-            building?['name']?.toString() ?? '-';
-      } else {
-        row['building_name'] = '-';
-      }
-
-      reports.add(ReportModel.fromMap(row));
+      reports.add(_mapReport(result));
     }
 
     await _saveCache(reports);
@@ -170,7 +249,7 @@ class ReportService {
     return reports;
   }
 
-  // Mengambil laporan dari cache lokal.
+  // Mengambil laporan dari cache.
   Future<List<ReportModel>> getCachedReports() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_cacheKey);
@@ -179,15 +258,14 @@ class ReportService {
 
     final rows = jsonDecode(raw) as List;
 
-    return rows
-        .map(
-          (item) => ReportModel.fromMap(
-            Map<String, dynamic>.from(item),
-          ),
-        )
-        .toList();
+    return rows.map((item) {
+      return ReportModel.fromMap(
+        Map<String, dynamic>.from(item),
+      );
+    }).toList();
   }
 
+  // Menyimpan laporan ke cache.
   Future<void> _saveCache(List<ReportModel> reports) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -197,47 +275,5 @@ class ReportService {
         reports.map((report) => report.toCacheMap()).toList(),
       ),
     );
-  }
-
-  // Mengambil detail satu laporan.
-  Future<ReportModel> getReportDetail(String id) async {
-    final row = await _db
-        .from('reports')
-        .select('''
-          *,
-          report_status_history(status, note, created_at),
-          report_photos(photo_url)
-        ''')
-        .eq('id', id)
-        .single();
-
-    final result = Map<String, dynamic>.from(row);
-
-    final categoryId = result['category_id']?.toString();
-    final buildingId = result['building_id']?.toString();
-
-    if (categoryId != null) {
-      final category = await _db
-          .from('categories')
-          .select('name')
-          .eq('id', categoryId)
-          .maybeSingle();
-
-      result['category_name'] =
-          category?['name']?.toString() ?? '-';
-    }
-
-    if (buildingId != null) {
-      final building = await _db
-          .from('buildings')
-          .select('name')
-          .eq('id', buildingId)
-          .maybeSingle();
-
-      result['building_name'] =
-          building?['name']?.toString() ?? '-';
-    }
-
-    return ReportModel.fromMap(result);
   }
 }
