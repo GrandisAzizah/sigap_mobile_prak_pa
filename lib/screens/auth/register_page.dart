@@ -80,6 +80,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return Scaffold(
       backgroundColor: background,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           // Dekorasi gelombang bawah
           const Positioned(

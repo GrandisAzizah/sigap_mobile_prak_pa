@@ -84,6 +84,7 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: background,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           const Positioned(
             left: 0,
