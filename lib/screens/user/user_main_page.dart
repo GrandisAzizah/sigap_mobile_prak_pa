@@ -6,6 +6,7 @@ import '../../components/bottom_nav.dart';
 import 'user_home_page.dart';
 import 'my_reports_page.dart';
 import 'profile_page.dart';
+import '../../services/notification_service.dart';
 
 /// Menjadi wadah utama tiga menu pengguna.
 /// Navbar hanya dibuat satu kali di halaman ini.
@@ -30,6 +31,18 @@ class _UserMainPageState extends State<UserMainPage> {
     const MyReportsPage(),
     const ProfilePage(),
   ];
+
+  @override
+void initState() {
+  super.initState();
+  NotificationService.startUserReportListener();
+}
+
+@override
+void dispose() {
+  NotificationService.stopUserReportListener();
+  super.dispose();
+}
 
   // Mengganti halaman berdasarkan indeks menu yang dipilih.
   void _selectTab(int index) {

@@ -1,7 +1,7 @@
-
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../app_styles.dart';
@@ -39,6 +39,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
   bool _loadingCampuses = true;
   bool _loadingBuildings = false;
   bool _sending = false;
+  bool _permissionDeniedForever = false;
 
   String? _errorMessage;
 
@@ -48,12 +49,9 @@ class _CreateReportPageState extends State<CreateReportPage> {
     _loadInitialData();
   }
 
-  // Mengambil kategori dan daftar kampus dari Supabase.
+  // Mengambil kategori dan daftar kampus terdekat dari Supabase.
   Future<void> _loadInitialData() async {
-    await Future.wait([
-      _loadCategories(),
-      _loadCampuses(),
-    ]);
+    await Future.wait([_loadCategories(), _loadCampuses()]);
   }
 
   Future<void> _loadCategories() async {
@@ -77,22 +75,45 @@ class _CreateReportPageState extends State<CreateReportPage> {
   }
 
   Future<void> _loadCampuses() async {
+    setState(() {
+      _loadingCampuses = true;
+      _errorMessage = null;
+      _permissionDeniedForever = false;
+    });
+
     try {
-      final data = await _locationService.getCampuses();
+      final data = await _locationService.getNearbyCampuses(
+        minRadiusMeters: 500,
+        maxRadiusMeters: 1000,
+      );
 
       if (!mounted) return;
 
       setState(() {
         _campuses = data;
         _loadingCampuses = false;
+
+        if (_campuses.length == 1) {
+          _selectedCampus = _campuses.first;
+          _loadBuildings(_selectedCampus!.id);
+        }
       });
+
+      if (data.isEmpty) {
+        _showMessage(
+          'Tidak ada kampus dalam jarak 500 m - 1 km dari lokasi Anda.',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
 
+      final message = e.toString().replaceFirst('Exception: ', '');
       setState(() {
         _loadingCampuses = false;
-        _errorMessage = 'Gagal mengambil data kampus: $e';
+        _errorMessage = message;
+        _permissionDeniedForever = message.toLowerCase().contains('permanen');
       });
+      _showMessage(message);
     }
   }
 
@@ -156,7 +177,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
     });
   }
 
-  // Mengirim laporan ke Supabase.
+  // Mengirim laporan dan upload foto ke Supabase.
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -188,9 +209,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
     } catch (e) {
       if (!mounted) return;
 
-      _showMessage(
-        e.toString().replaceFirst('Exception: ', ''),
-      );
+      _showMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() {
@@ -204,10 +223,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -220,10 +236,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Buat Laporan'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Buat Laporan'), centerTitle: true),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -250,15 +263,12 @@ class _CreateReportPageState extends State<CreateReportPage> {
                 onChanged: (value) {
                   setState(() {
                     _selectedCategory = _categories.firstWhere(
-                      (category) =>
-                          category['id'].toString() == value,
+                      (category) => category['id'].toString() == value,
                     );
                   });
                 },
                 validator: (value) {
-                  return value == null
-                      ? 'Pilih kategori kerusakan.'
-                      : null;
+                  return value == null ? 'Pilih kategori kerusakan.' : null;
                 },
               ),
 
@@ -269,18 +279,67 @@ class _CreateReportPageState extends State<CreateReportPage> {
 
             if (_loadingCampuses)
               const LinearProgressIndicator()
+            else if (_campuses.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.error.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.location_off, color: AppColors.error),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _errorMessage ?? 'Tidak ada kampus dalam jarak 500 m - 1 km dari lokasi Anda.',
+                            style: const TextStyle(
+                              color: AppColors.error,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (_permissionDeniedForever)
+                          TextButton(
+                            onPressed: () async {
+                              await Geolocator.openAppSettings();
+                            },
+                            child: const Text('Buka Pengaturan'),
+                          ),
+                        TextButton(
+                          onPressed: _loadCampuses,
+                          child: const Text('Cek Ulang'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              )
             else
               DropdownButtonFormField<String>(
                 value: _selectedCampus?.id,
                 isExpanded: true,
-                decoration: const InputDecoration(
-                  hintText: 'Pilih kampus',
-                ),
+                decoration: const InputDecoration(hintText: 'Pilih kampus'),
                 items: _campuses.map((campus) {
+                  final distanceLabel = campus.distanceInMeters != null
+                      ? ' (${campus.distanceInMeters!.toStringAsFixed(0)} m)'
+                      : '';
                   return DropdownMenuItem<String>(
                     value: campus.id,
                     child: Text(
-                      campus.name,
+                      '${campus.name}$distanceLabel',
                       overflow: TextOverflow.ellipsis,
                     ),
                   );
@@ -316,17 +375,12 @@ class _CreateReportPageState extends State<CreateReportPage> {
               DropdownButtonFormField<String>(
                 value: _selectedBuilding?.id,
                 isExpanded: true,
-                decoration: const InputDecoration(
-                  hintText: 'Pilih gedung',
-                ),
+                decoration: const InputDecoration(hintText: 'Pilih gedung'),
                 items: _buildings.map((building) {
                   return DropdownMenuItem<String>(
                     value: building.id,
                     child: Text(
-                      building.faculty == null ||
-                              building.faculty!.isEmpty
-                          ? building.name
-                          : '${building.name} - ${building.faculty}',
+                      building.displayName,
                       overflow: TextOverflow.ellipsis,
                     ),
                   );
@@ -400,8 +454,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
                               );
                             }
 
-                            if (snapshot.hasError ||
-                                !snapshot.hasData) {
+                            if (snapshot.hasError || !snapshot.hasData) {
                               return Container(
                                 width: 90,
                                 height: 90,
@@ -451,9 +504,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
                       width: 90,
                       height: 90,
                       decoration: BoxDecoration(
-                        border: Border.all(
-                          color: AppColors.light,
-                        ),
+                        border: Border.all(color: AppColors.light),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -477,9 +528,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Text('Kirim Laporan'),
               ),
@@ -494,12 +543,7 @@ class _CreateReportPageState extends State<CreateReportPage> {
   Widget _label(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: AppTextStyle.heading.copyWith(
-          fontSize: 13,
-        ),
-      ),
+      child: Text(text, style: AppTextStyle.heading.copyWith(fontSize: 13)),
     );
   }
 }

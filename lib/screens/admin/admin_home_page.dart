@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app_styles.dart';
+import '../../services/notification_service.dart';
 import 'admin_profile_page.dart';
 import 'admin_reports_page.dart';
 
@@ -14,6 +15,20 @@ class AdminHomePage extends StatefulWidget {
 
 class _AdminHomePageState extends State<AdminHomePage> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Mulai mendengarkan laporan baru dari Supabase Realtime saat admin masuk halaman ini.
+    NotificationService.startAdminReportListener();
+  }
+
+  @override
+  void dispose() {
+    // Hentikan listener saat halaman admin ditutup / logout.
+    NotificationService.stopAdminReportListener();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

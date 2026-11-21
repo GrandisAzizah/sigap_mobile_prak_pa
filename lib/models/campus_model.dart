@@ -1,16 +1,34 @@
 class CampusModel {
   final String id;
   final String name;
+  final double latitude;
+  final double longitude;
+  final double? distanceInMeters;
 
   const CampusModel({
     required this.id,
     required this.name,
+    required this.latitude,
+    required this.longitude,
+    this.distanceInMeters,
   });
 
   factory CampusModel.fromMap(Map<String, dynamic> map) {
     return CampusModel(
       id: map['id'].toString(),
       name: map['name_campus']?.toString() ?? '-',
+      latitude: (map['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (map['longitude'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  CampusModel copyWith({double? distanceInMeters}) {
+    return CampusModel(
+      id: id,
+      name: name,
+      latitude: latitude,
+      longitude: longitude,
+      distanceInMeters: distanceInMeters ?? this.distanceInMeters,
     );
   }
 }
