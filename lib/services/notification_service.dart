@@ -22,14 +22,15 @@ class NotificationService {
       '@mipmap/ic_launcher',
     );
 
-    const settings = InitializationSettings(
-      android: androidSettings,
-    );
+    const settings = InitializationSettings(android: androidSettings);
 
+    // v22: positional parameter
     await _plugin.initialize(settings: settings);
 
-    final android = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     await android?.requestNotificationsPermission();
 
@@ -56,6 +57,7 @@ class NotificationService {
       enableVibration: vibrationEnabled,
     );
 
+    // v22: positional parameter
     await _plugin.show(
       id: id,
       title: title,
@@ -64,8 +66,7 @@ class NotificationService {
     );
   }
 
-  // 1. Dipanggil saat USER membuka halaman utama (UserMainPage / UserHomePage).
-  // Mendengarkan perubahan status laporan milik user yang sedang login.
+  // 1. Listener laporan user (perubahan status).
   static Future<void> startUserReportListener() async {
     await initialize();
     final db = Supabase.instance.client;
@@ -92,6 +93,7 @@ class NotificationService {
                 payload.newRecord['title']?.toString() ?? 'Laporan Anda';
 
             if (newStatus != null && oldStatus != newStatus) {
+              // ignore: discarded_futures
               showNotification(
                 id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
                 title: 'Status Laporan Diperbarui',
@@ -103,8 +105,7 @@ class NotificationService {
         .subscribe();
   }
 
-  // 2. Dipanggil saat ADMIN membuka halaman utama (AdminHomePage / AdminReportsPage).
-  // Mendengarkan setiap laporan baru yang masuk ke tabel reports.
+  // 2. Listener laporan baru admin.
   static Future<void> startAdminReportListener() async {
     await initialize();
     final db = Supabase.instance.client;
@@ -118,11 +119,10 @@ class NotificationService {
           schema: 'public',
           table: 'reports',
           callback: (payload) {
-            final title = payload.newRecord['title']?.toString() ??
+            final title =
+                payload.newRecord['title']?.toString() ??
                 'Laporan Kerusakan Baru';
-            final detail =
-                payload.newRecord['report_detail']?.toString() ?? '';
-
+            final detail = payload.newRecord['report_detail']?.toString() ?? '';
             showNotification(
               id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
               title: title,
@@ -174,23 +174,21 @@ class NotificationService {
       enableVibration: vibrationEnabled,
     );
 
-    final details = NotificationDetails(
-      android: androidDetails,
-    );
+    final details = NotificationDetails(android: androidDetails);
 
+    // v22: positional parameter + named androidScheduleMode
     await _plugin.zonedSchedule(
       id: 999,
       title: 'Tes Notifikasi SIGAP',
-      body: 'Berhasil! Notifikasi SIGAP tetap berjalan di latar belakang.',
-      scheduledDate: tz.TZDateTime.now(tz.local).add(
-        const Duration(seconds: 10),
-      ),
+      body: 'Berhasil! ...',
+      scheduledDate: tz.TZDateTime.now(tz.local)
+          .add(const Duration(seconds: 10)),
       notificationDetails: details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }
 
-  // Membatalkan notifikasi percobaan yang masih terjadwal.
+  // Membatalkan notifikasi percobaan.
   static Future<void> cancelTestNotification() async {
     await _plugin.cancel(id: 999);
   }

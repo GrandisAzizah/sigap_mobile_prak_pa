@@ -1,4 +1,5 @@
-import 'package:MyApp/screens/admin/admin_home_page.dart';
+import '../screens/admin/admin_home_page.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
@@ -24,7 +25,8 @@ class SIgapApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'SIGAP',
       debugShowCheckedModeBanner: false,
-      home: const AdminHomePage(),
+      // home: const AdminHomePage(),
+      home: const SplashPage(),
     );
   }
 }

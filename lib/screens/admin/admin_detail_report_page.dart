@@ -5,9 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app_styles.dart';
 import 'status_chip.dart';
 
-/// Detail laporan + ubah status, petugas, dan catatan.
-/// Trigger di database otomatis mencatat riwayat & mengirim notifikasi ke pelapor.
-/// Mengembalikan true ke halaman sebelumnya kalau ada perubahan.
+const adminReportSelect =
+    '*, categories(name), buildings(name), staffs(name_staff), users(name, nim), report_photos(photo_url)';
+
 class AdminReportDetailPage extends StatefulWidget {
   final Map<String, dynamic> report;
   const AdminReportDetailPage({super.key, required this.report});
@@ -19,9 +19,12 @@ class AdminReportDetailPage extends StatefulWidget {
 class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
   final _db = Supabase.instance.client;
 
-  late String _status = (widget.report['status_reports'] ?? 'menunggu').toString();
+  late String _status = (widget.report['status_reports'] ?? 'menunggu')
+      .toString();
   late String? _staffId = widget.report['staff_id'] as String?;
-  late final _note = TextEditingController(text: widget.report['admin_note'] as String?);
+  late final _note = TextEditingController(
+    text: widget.report['admin_note'] as String?,
+  );
 
   List<Map<String, dynamic>> _staffs = [];
   bool _saving = false;
@@ -59,11 +62,13 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
   void _snack(String msg) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(msg),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.primary,
-      ));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.primary,
+        ),
+      );
   }
 
   Future<void> _save() async {
@@ -73,13 +78,19 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
     }
     setState(() => _saving = true);
     try {
-      await _db.from('reports').update({
-        'status_reports': _status,
-        'staff_id': _staffId,
-        'admin_note': _note.text.trim().isEmpty ? null : _note.text.trim(),
-      }).eq('id', widget.report['id']);
+      await _db
+          .from('reports')
+          .update({
+            'status_reports': _status,
+            'staff_id': _staffId,
+            'admin_note': _note.text.trim().isEmpty ? null : _note.text.trim(),
+          })
+          .eq('id', widget.report['id']);
       Get.back(result: true);
-      Get.snackbar('Tersimpan', 'Laporan diperbarui, pelapor akan mendapat notifikasi');
+      Get.snackbar(
+        'Tersimpan',
+        'Laporan diperbarui, pelapor akan mendapat notifikasi',
+      );
     } catch (e) {
       _snack('Gagal menyimpan: $e');
     } finally {
@@ -95,17 +106,24 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
         .toList();
     final building = (r['buildings'] as Map?)?['name'] as String?;
     final room = r['room_detail'] as String?;
-    final location = [building, room].where((e) => e != null && e.isNotEmpty).join(' • ');
+    final location = [
+      building,
+      room,
+    ].where((e) => e != null && e.isNotEmpty).join(' • ');
     final reporter = r['users'] as Map?;
-    final staffValue = _staffs.any((s) => s['id'] == _staffId) ? _staffId : null;
+    final staffValue = _staffs.any((s) => s['id'] == _staffId)
+        ? _staffId
+        : null;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        title: Text((r['report_code'] ?? 'Detail Laporan').toString(),
-            style: AppTextStyle.heading.copyWith(fontSize: 16)),
+        title: Text(
+          (r['report_code'] ?? 'Detail Laporan').toString(),
+          style: AppTextStyle.heading.copyWith(fontSize: 16),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -121,12 +139,15 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
                   borderRadius: BorderRadius.circular(16),
                   child: Image.network(
                     photos[i],
-                    width: photos.length == 1 ? MediaQuery.of(context).size.width - 40 : 260,
+                    width: photos.length == 1
+                        ? MediaQuery.of(context).size.width - 40
+                        : 260,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
-                        width: 260,
-                        color: AppColors.light,
-                        child: const Icon(Icons.broken_image_outlined)),
+                      width: 260,
+                      color: AppColors.light,
+                      child: const Icon(Icons.broken_image_outlined),
+                    ),
                   ),
                 ),
               ),
@@ -135,9 +156,15 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
             Container(
               height: 120,
               decoration: BoxDecoration(
-                  color: AppColors.light, borderRadius: BorderRadius.circular(16)),
+                color: AppColors.light,
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: const Center(
-                  child: Icon(Icons.image_not_supported_outlined, color: AppColors.secondary)),
+                child: Icon(
+                  Icons.image_not_supported_outlined,
+                  color: AppColors.secondary,
+                ),
+              ),
             ),
           const SizedBox(height: 16),
           Row(
@@ -148,16 +175,27 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
             ],
           ),
           const SizedBox(height: 10),
-          Text((r['title'] ?? '').toString(), style: AppTextStyle.heading.copyWith(fontSize: 18)),
+          Text(
+            (r['title'] ?? '').toString(),
+            style: AppTextStyle.heading.copyWith(fontSize: 18),
+          ),
           const SizedBox(height: 12),
-          _Info('Kategori', ((r['categories'] as Map?)?['name'] ?? '-').toString()),
+          _Info(
+            'Kategori',
+            ((r['categories'] as Map?)?['name'] ?? '-').toString(),
+          ),
           _Info('Lokasi', location.isEmpty ? '-' : location),
-          _Info('Pelapor',
-              '${reporter?['name'] ?? '-'}${reporter?['nim'] == null ? '' : ' (${reporter!['nim']})'}'),
+          _Info(
+            'Pelapor',
+            '${reporter?['name'] ?? '-'}${reporter?['nim'] == null ? '' : ' (${reporter!['nim']})'}',
+          ),
           _Info('Dilaporkan', formatTanggal(r['created_at'])),
           _Info('Deskripsi', (r['report_detail'] ?? '-').toString()),
           const Divider(height: 32),
-          Text('Ubah Status', style: AppTextStyle.body.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            'Ubah Status',
+            style: AppTextStyle.body.copyWith(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _status,
@@ -167,31 +205,44 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
             onChanged: (v) => setState(() => _status = v ?? _status),
           ),
           const SizedBox(height: 16),
-          Text('Petugas Perbaikan', style: AppTextStyle.body.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            'Petugas Perbaikan',
+            style: AppTextStyle.body.copyWith(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String?>(
             value: staffValue,
             isExpanded: true,
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('Belum ditentukan')),
-              ..._staffs.map((s) => DropdownMenuItem<String?>(
-                    value: s['id'] as String,
-                    child: Text(
-                      '${s['name_staff']} (${(s['categories'] as Map?)?['name'] ?? 'Umum'})'
-                      '${s['is_active'] == false ? ' - nonaktif' : ''}',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  )),
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Belum ditentukan'),
+              ),
+              ..._staffs.map(
+                (s) => DropdownMenuItem<String?>(
+                  value: s['id'] as String,
+                  child: Text(
+                    '${s['name_staff']} (${(s['categories'] as Map?)?['name'] ?? 'Umum'})'
+                    '${s['is_active'] == false ? ' - nonaktif' : ''}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
             ],
             onChanged: (v) => setState(() => _staffId = v),
           ),
           const SizedBox(height: 16),
-          Text('Catatan (opsional)', style: AppTextStyle.body.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            'Catatan (opsional)',
+            style: AppTextStyle.body.copyWith(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _note,
             maxLines: 3,
-            decoration: const InputDecoration(hintText: 'Tambahkan catatan penanganan...'),
+            decoration: const InputDecoration(
+              hintText: 'Tambahkan catatan penanganan...',
+            ),
           ),
           const SizedBox(height: 24),
           ElevatedButton(
@@ -200,7 +251,11 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Text('Simpan Perubahan'),
           ),
         ],
@@ -216,13 +271,15 @@ class _Info extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(width: 92, child: Text(label, style: AppTextStyle.label)),
-            Expanded(child: Text(value, style: AppTextStyle.body.copyWith(fontSize: 13))),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(width: 92, child: Text(label, style: AppTextStyle.label)),
+        Expanded(
+          child: Text(value, style: AppTextStyle.body.copyWith(fontSize: 13)),
         ),
-      );
+      ],
+    ),
+  );
 }

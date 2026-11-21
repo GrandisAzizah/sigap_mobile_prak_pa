@@ -83,8 +83,8 @@ class _CreateReportPageState extends State<CreateReportPage> {
 
     try {
       final data = await _locationService.getNearbyCampuses(
-        minRadiusMeters: 500,
-        maxRadiusMeters: 1000,
+        minRadiusMeters: 1,
+        maxRadiusMeters: 4000,
       );
 
       if (!mounted) return;

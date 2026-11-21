@@ -4,19 +4,29 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../app_styles.dart';
 import 'admin_detail_report_page.dart';
-import 'status_chip.dart';
+import 'status_chip.dart'; 
 
-/// Daftar laporan admin: 2 tab (Belum Selesai / Selesai) + pencarian judul.
+/// Beranda admin: daftar laporan  + pencarian judul + ikon notifikasi.
 class AdminReportsPage extends StatefulWidget {
-  const AdminReportsPage({super.key});
+  final int unread;
+  final VoidCallback onOpenNotifications;
+
+  const AdminReportsPage({
+    super.key,
+    required this.unread,
+    required this.onOpenNotifications,
+  });
 
   @override
   State<AdminReportsPage> createState() => _AdminReportsPageState();
 }
 
-class _AdminReportsPageState extends State<AdminReportsPage> {
+class _AdminReportsPageState extends State<AdminReportsPage>
+    with SingleTickerProviderStateMixin {
   final _db = Supabase.instance.client;
   final _searchCtrl = TextEditingController();
+  RealtimeChannel? _channel;
+  late TabController _tabController;
 
   List<Map<String, dynamic>> _all = [];
   String _query = '';
@@ -26,26 +36,40 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _load();
+
+    // Laporan baru / perubahan status langsung muncul tanpa tarik-refresh
+    _channel = _db
+        .channel('admin-reports-list')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'reports',
+          callback: (_) => _load(silent: true),
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
+    if (_channel != null) _db.removeChannel(_channel!);
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final data = await _db
           .from('reports')
-          .select(
-            '*, categories(name), buildings(name), staffs(name_staff), users(name, nim), report_photos(photo_url)',
-          )
+          .select(adminReportSelect)
           .order('created_at', ascending: false);
       if (!mounted) return;
       setState(() => _all = List<Map<String, dynamic>>.from(data as List));
@@ -57,13 +81,17 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
     }
   }
 
-  /// done=true -> tab Selesai; false -> Belum Selesai (menunggu + diproses).
-  /// Pencarian: judul mengandung kata yang dicari (tidak peka huruf besar/kecil).
-  List<Map<String, dynamic>> _filtered({required bool done}) {
+  /// Filter berdasarkan status & pencarian judul
+  List<Map<String, dynamic>> _filtered({required String status}) {
     final q = _query.trim().toLowerCase();
     return _all.where((r) {
-      final isDone = r['status_reports'] == 'selesai';
-      if (isDone != done) return false;
+      // Cek status
+      final currentStatus = (r['status_reports'] ?? 'menunggu')
+          .toString()
+          .toLowerCase();
+      if (currentStatus != status) return false;
+
+      // Cek pencarian
       if (q.isEmpty) return true;
       return (r['title'] ?? '').toString().toLowerCase().contains(q);
     }).toList();
@@ -76,94 +104,128 @@ class _AdminReportsPageState extends State<AdminReportsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final belum = _filtered(done: false);
-    final selesai = _filtered(done: true);
+    final menunggu = _filtered(status: 'menunggu');
+    final diproses = _filtered(status: 'diproses');
+    final selesai = _filtered(status: 'selesai');
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Laporan',
-                    style: AppTextStyle.heading.copyWith(fontSize: 24),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: TextField(
-                  controller: _searchCtrl,
-                  onChanged: (v) => setState(() => _query = v),
-                  style: AppTextStyle.body.copyWith(fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Cari judul laporan...',
-                    hintStyle: AppTextStyle.label,
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: AppColors.textSecondary,
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Judul dan ikon notifikasi di kanan atas sebelahan
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Laporan',
+                      style: AppTextStyle.heading.copyWith(fontSize: 24),
                     ),
-                    suffixIcon: _query.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () {
-                              _searchCtrl.clear();
-                              setState(() => _query = '');
-                            },
-                          ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TabBar(
-                labelColor: AppColors.primary,
-                unselectedLabelColor: AppColors.textSecondary,
-                indicatorColor: AppColors.primary,
-                labelStyle: AppTextStyle.label.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-                tabs: [
-                  Tab(text: 'Belum Selesai (${belum.length})'),
-                  Tab(text: 'Selesai (${selesai.length})'),
+                  IconButton(
+                    tooltip: 'Notifikasi',
+                    onPressed: widget.onOpenNotifications,
+                    icon: Badge(
+                      isLabelVisible: widget.unread > 0,
+                      label: Text('${widget.unread}'),
+                      child: const Icon(
+                        Icons.notifications_outlined,
+                        size: 28,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                    ? _ErrorView(message: _error!, onRetry: _load)
-                    : TabBarView(
-                        children: [
-                          _ReportList(
-                            items: belum,
-                            query: _query,
-                            emptyText: 'Tidak ada laporan yang belum selesai',
-                            onRefresh: _load,
-                            onTap: _openDetail,
-                          ),
-                          _ReportList(
-                            items: selesai,
-                            query: _query,
-                            emptyText: 'Belum ada laporan yang selesai',
-                            onRefresh: _load,
-                            onTap: _openDetail,
-                          ),
-                        ],
-                      ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() => _query = v),
+                style: AppTextStyle.body.copyWith(fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Cari judul laporan...',
+                  hintStyle: AppTextStyle.label,
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: AppColors.textSecondary,
+                  ),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() => _query = '');
+                          },
+                        ),
+                ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+
+            // TabBar 3 Status
+            TabBar(
+              controller: _tabController,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: AppColors.primary,
+              labelStyle: AppTextStyle.label.copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+              tabs: [
+                Tab(text: 'Menunggu (${menunggu.length})'),
+                Tab(text: 'Diproses (${diproses.length})'),
+                Tab(text: 'Selesai (${selesai.length})'),
+              ],
+            ),
+
+            // TabBarView
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                  ? _ErrorView(message: _error!, onRetry: _load)
+                  : TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _ReportList(
+                          items: menunggu,
+                          query: _query,
+                          emptyText: 'Tidak ada laporan yang menunggu',
+                          onRefresh: _load,
+                          onTap: _openDetail,
+                        ),
+                        _ReportList(
+                          items: diproses,
+                          query: _query,
+                          emptyText: 'Tidak ada laporan yang sedang diproses',
+                          onRefresh: _load,
+                          onTap: _openDetail,
+                        ),
+                        _ReportList(
+                          items: selesai,
+                          query: _query,
+                          emptyText: 'Belum ada laporan yang selesai',
+                          onRefresh: _load,
+                          onTap: _openDetail,
+                        ),
+                      ],
+                    ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
+
+// ==========================================
+// BUAT SI TAB ITU LAH INTINYA BIAR JADI 3
+// ==========================================
 
 class _ReportList extends StatelessWidget {
   final List<Map<String, dynamic>> items;

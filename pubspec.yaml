@@ -17,7 +17,8 @@ dependencies:
   geolocator: ^14.1.2
   shared_preferences: ^2.5.6
   image_picker: ^1.2.4
-  flutter_local_notifications: ^23.0.0
+  # Turunkan versi ke 22.x, hindari persyaratan ketat Flutter 3.44 / compileSdk 37
+  flutter_local_notifications: ^22.0.0
   timezone: ^0.11.2
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
