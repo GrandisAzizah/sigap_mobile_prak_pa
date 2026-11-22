@@ -1,6 +1,8 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'dart:convert';
+
 class LocalDb {
   // Instansiasi private
   LocalDb._();
@@ -45,17 +47,37 @@ class LocalDb {
     final prefs = await SharedPreferences.getInstance();
     return await prefs.clear();
   }
+
   // 2. HIVE LOCAL DATABASE — SESI LOGIN OFFLINE
   /// Menyimpan sesi user setelah berhasil login online (id, email, nama, role, dll).
+  // static Future<void> saveUserSession(Map<String, dynamic> userData) async {
+  //   await _box.put(_userSessionKey, userData);
+  // }
+
+  // /// Mengambil sesi user yang tersimpan di Hive untuk login/akses offline.
+  // static Map<String, dynamic>? getUserSession() {
+  //   final raw = _box.get(_userSessionKey);
+  //   if (raw == null || raw is! Map) return null;
+  //   return Map<String, dynamic>.from(raw);
+  // }
+
+  // Simpan sebagai String JSON
   static Future<void> saveUserSession(Map<String, dynamic> userData) async {
-    await _box.put(_userSessionKey, userData);
+    final String jsonString = jsonEncode(userData);
+    await _box.put(_userSessionKey, jsonString);
   }
 
-  /// Mengambil sesi user yang tersimpan di Hive untuk login/akses offline.
+  // Baca dari String JSON lalu ubah lagi jadi Map
   static Map<String, dynamic>? getUserSession() {
     final raw = _box.get(_userSessionKey);
-    if (raw == null || raw is! Map) return null;
-    return Map<String, dynamic>.from(raw);
+    if (raw == null || raw is! String) return null;
+
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return decoded;
+    } catch (e) {
+      return null;
+    }
   }
 
   /// Mengecek apakah terdapat sesi user tersimpan untuk mode offline.
@@ -67,20 +89,41 @@ class LocalDb {
   static Future<void> clearUserSession() async {
     await _box.delete(_userSessionKey);
   }
+
   // 3. HIVE LOCAL DATABASE — DATA LAPORAN OFFLINE
   /// Menyimpan daftar laporan (dalam bentuk List) ke Hive.
+  // static Future<void> saveReports(List reports) async {
+  //   await _box.put(_reportsKey, reports);
+  // }
+
+  // /// Mengambil daftar laporan yang tersimpan di Hive saat offline.
+  // static List getReports() {
+  //   final raw = _box.get(_reportsKey);
+  //   if (raw == null || raw is! List) return [];
+
+  //   return raw.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+  // }
+
+  // Simpan sebagai String JSON
   static Future<void> saveReports(List reports) async {
-    await _box.put(_reportsKey, reports);
+    final String jsonString = jsonEncode(reports);
+    await _box.put(_reportsKey, jsonString);
   }
 
-  /// Mengambil daftar laporan yang tersimpan di Hive saat offline.
+  // Baca dari String JSON lalu ubah lagi jadi List
   static List getReports() {
     final raw = _box.get(_reportsKey);
-    if (raw == null || raw is! List) return [];
+    if (raw == null || raw is! String) return [];
 
-    return raw
-        .map((item) => Map<String, dynamic>.from(item as Map))
-        .toList();
+    try {
+      final decoded = jsonDecode(raw) as List;
+      // Konversi setiap item menjadi Map<String, dynamic>
+      return decoded
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    } catch (e) {
+      return [];
+    }
   }
 
   /// Menghapus cache laporan lokal dari Hive.
