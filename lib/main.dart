@@ -1,5 +1,3 @@
-import '../screens/admin/admin_home_page.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
@@ -14,18 +12,17 @@ Future<void> main() async {
     url: dotenv.env['SUPABASE_URL']!,
     publishableKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
-  runApp(const SIgapApp());
+  runApp(const SigapApp());
 }
 
-class SIgapApp extends StatelessWidget {
-  const SIgapApp({super.key});
+class SigapApp extends StatelessWidget {
+  const SigapApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'SIGAP',
       debugShowCheckedModeBanner: false,
-      // home: const AdminHomePage(),
       home: const SplashPage(),
     );
   }
