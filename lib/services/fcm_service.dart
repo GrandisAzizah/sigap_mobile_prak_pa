@@ -23,6 +23,18 @@ class FcmService {
       settings: const InitializationSettings(android: androidSettings),
     );
 
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'sigap_push_channel',
+      'SIGAP Push Notifications',
+      description: 'Channel untuk notifikasi aplikasi SIGAP',
+      importance: Importance.max,
+    );
+    await _localNotif
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(channel);
+
     // 1. Daftarkan listener (CUKUP SATU KALI)
     _fcm.onRegistered.listen((String installationId) {
       _saveTokenToSupabase(installationId);
@@ -85,6 +97,23 @@ class FcmService {
       print("Token FCM berhasil dihapus dan di-unregister.");
     } catch (e) {
       print("Gagal menghapus token FCM: $e");
+    }
+  }
+
+  // Fungsi ini dipanggil setiap kali ada user yang login
+  static Future<void> saveTokenOnLogin() async {
+    // Pastikan user sudah login sebelum ambil token
+    if (Supabase.instance.client.auth.currentUser == null) return;
+
+    try {
+      // Daftarkan ulang HP ini ke Firebase
+      await _fcm.register();
+
+      // Karena kita menggunakan onRegistered, token akan otomatis
+      // ditangkap oleh listener di init() dan disimpan ke database.
+      print("Proses register ulang FCM berhasil dipicu.");
+    } catch (e) {
+      print("Gagal register FCM saat login: $e");
     }
   }
 }

@@ -3,8 +3,9 @@ import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../app_styles.dart';
+import '../../services/local_db.dart';
 import 'admin_detail_report_page.dart';
-import 'status_chip.dart'; 
+import 'status_chip.dart';
 
 /// Beranda admin: daftar laporan  + pencarian judul + ikon notifikasi.
 class AdminReportsPage extends StatefulWidget {
@@ -28,7 +29,7 @@ class _AdminReportsPageState extends State<AdminReportsPage>
   RealtimeChannel? _channel;
   late TabController _tabController;
 
-  List<Map<String, dynamic>> _all = [];
+  List<LocalMap> _all = [];
   String _query = '';
   bool _loading = true;
   String? _error;
@@ -71,18 +72,34 @@ class _AdminReportsPageState extends State<AdminReportsPage>
           .from('reports')
           .select(adminReportSelect)
           .order('created_at', ascending: false);
+
+      final reports = List<LocalMap>.from(data as List);
+
+      // Simpan daftar laporan terbaru ke Hive agar bisa dibaca saat offline
+      await LocalDb.saveAdminReports(reports);
+
       if (!mounted) return;
-      setState(() => _all = List<Map<String, dynamic>>.from(data as List));
+      setState(() => _all = reports);
     } catch (e) {
+      // Ambil dari cache Hive jika offline / gagal memuat dari server
+      final cached = LocalDb.getAdminReports();
       if (!mounted) return;
-      setState(() => _error = '$e');
+
+      if (cached.isNotEmpty) {
+        setState(() {
+          _all = cached.map((item) => LocalMap.from(item as Map)).toList();
+          _error = null;
+        });
+      } else {
+        setState(() => _error = '$e');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   /// Filter berdasarkan status & pencarian judul
-  List<Map<String, dynamic>> _filtered({required String status}) {
+  List<LocalMap> _filtered({required String status}) {
     final q = _query.trim().toLowerCase();
     return _all.where((r) {
       // Cek status
@@ -97,7 +114,7 @@ class _AdminReportsPageState extends State<AdminReportsPage>
     }).toList();
   }
 
-  Future<void> _openDetail(Map<String, dynamic> r) async {
+  Future<void> _openDetail(LocalMap r) async {
     final changed = await Get.to(() => AdminReportDetailPage(report: r));
     if (changed == true) _load();
   }
@@ -228,11 +245,11 @@ class _AdminReportsPageState extends State<AdminReportsPage>
 // ==========================================
 
 class _ReportList extends StatelessWidget {
-  final List<Map<String, dynamic>> items;
+  final List<LocalMap> items;
   final String query;
   final String emptyText;
   final Future<void> Function() onRefresh;
-  final void Function(Map<String, dynamic>) onTap;
+  final void Function(LocalMap) onTap;
 
   const _ReportList({
     required this.items,
@@ -273,7 +290,7 @@ class _ReportList extends StatelessWidget {
 }
 
 class _ReportTile extends StatelessWidget {
-  final Map<String, dynamic> report;
+  final LocalMap report;
   final VoidCallback onTap;
   const _ReportTile({required this.report, required this.onTap});
 

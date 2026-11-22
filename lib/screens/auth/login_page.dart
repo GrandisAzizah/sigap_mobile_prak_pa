@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../services/local_db.dart';
 
+import '../../services/local_db.dart';
+import '../../services/fcm_service.dart';
 import '../../services/auth_service.dart';
 import '../admin/admin_home_page.dart';
 import '../user/user_main_page.dart';
@@ -55,6 +56,7 @@ class _LoginPageState extends State<LoginPage> {
       await _auth.loginWithNim(nim: username, password: password);
       final role = await _auth.getRole();
       final user = Supabase.instance.client.auth.currentUser;
+      await FcmService.saveTokenOnLogin();
 
       // 2. Simpan sesi user ke Hive (LocalDb) untuk akses/login offline
       if (_rememberMe) {
@@ -87,7 +89,9 @@ class _LoginPageState extends State<LoginPage> {
           () => role == 'admin' ? const AdminHomePage() : const UserMainPage(),
         );
       } else {
-        _showMessage('Gagal masuk (tidak ada koneksi / akun belum tersimpan offline).');
+        _showMessage(
+          'Gagal masuk (tidak ada koneksi / akun belum tersimpan offline).',
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);

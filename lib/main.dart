@@ -24,8 +24,15 @@ Future<void> main() async {
     publishableKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await FcmService.init();
+  // Bungkus Firebase & FCM dengan try-catch
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await FcmService.init();
+  } catch (e) {
+    print("Firebase/FCM initialization failed: $e");
+  }
   // 3. Inisialisasi layanan notifikasi lokal
   await NotificationService.initialize();
 
