@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "649493320785",
+    "project_id": "sigap-fdb25",
+    "storage_bucket": "sigap-fdb25.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:649493320785:android:da15d8ab34a3d35b1ad470",
+        "android_client_info": {
+          "package_name": "com.example.sigap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCcT0Wsen0HVDyGBa89GMrTBs5M0AEiiNM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
