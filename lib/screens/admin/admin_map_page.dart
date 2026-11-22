@@ -232,7 +232,7 @@ class _AdminMapPageState extends State<AdminMapPage> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.flutter_application_1',
+                userAgentPackageName: 'com.example.sigap',
               ),
               MarkerLayer(
                 markers: [
