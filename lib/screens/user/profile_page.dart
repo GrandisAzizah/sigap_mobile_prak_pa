@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -87,14 +86,9 @@ class _ProfilePageState extends State<ProfilePage> {
         throw Exception('Pengguna belum login.');
       }
 
-      await db.auth.updateUser(
-        UserAttributes(data: {'name': name}),
-      );
+      await db.auth.updateUser(UserAttributes(data: {'name': name}));
 
-      await db
-          .from('users')
-          .update({'name': name})
-          .eq('id', user.id);
+      await db.from('users').update({'name': name}).eq('id', user.id);
 
       if (!mounted) return;
       _showMessage('Profil berhasil diperbarui.');
@@ -233,9 +227,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Menampilkan pesan kepada pengguna.
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -250,9 +243,7 @@ class _ProfilePageState extends State<ProfilePage> {
       return const Scaffold(
         backgroundColor: AppColors.background,
         body: Center(
-          child: CircularProgressIndicator(
-            color: AppColors.primary,
-          ),
+          child: CircularProgressIndicator(color: AppColors.primary),
         ),
       );
     }
@@ -315,14 +306,9 @@ class _ProfilePageState extends State<ProfilePage> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            AppColors.primary,
-            AppColors.secondary,
-          ],
+          colors: [AppColors.primary, AppColors.secondary],
         ),
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(28),
-        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,17 +334,11 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 8),
           Text(
             _email.isEmpty ? 'Kelola informasi akun Anda' : _email,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: Colors.white, fontSize: 13),
           ),
           const SizedBox(height: 20),
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(10),
@@ -393,10 +373,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionHeading(
-          'Informasi Akun',
-          'Perbarui informasi pribadi Anda.',
-        ),
+        _sectionHeading('Informasi Akun', 'Perbarui informasi pribadi Anda.'),
         const SizedBox(height: 16),
         _panel(
           child: Column(
@@ -406,9 +383,7 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 8),
               TextField(
                 controller: _nameController,
-                decoration: _inputDecoration(
-                  'Masukkan nama lengkap',
-                ),
+                decoration: _inputDecoration('Masukkan nama lengkap'),
               ),
               const SizedBox(height: 18),
               _fieldLabel('Alamat Email'),
@@ -442,9 +417,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  child: Text(
-                    _saving ? 'Menyimpan...' : 'Simpan Profil',
-                  ),
+                  child: Text(_saving ? 'Menyimpan...' : 'Simpan Profil'),
                 ),
               ),
             ],
@@ -459,10 +432,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionHeading(
-          'Keamanan',
-          'Lindungi akun dengan password yang aman.',
-        ),
+        _sectionHeading('Keamanan', 'Lindungi akun dengan password yang aman.'),
         const SizedBox(height: 16),
         _panel(
           padding: EdgeInsets.zero,
@@ -509,10 +479,7 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 16),
 
         _panel(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Column(
             children: [
               _notificationTile(
@@ -521,20 +488,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 value: _notifications,
                 onChanged: _setNotifications,
               ),
-              const Divider(
-                height: 1,
-                color: AppColors.light,
-              ),
+              const Divider(height: 1, color: AppColors.light),
               _notificationTile(
                 title: 'Suara',
                 subtitle: 'Suara saat notifikasi diterima',
                 value: _sound,
                 onChanged: _notifications ? _setSound : null,
               ),
-              const Divider(
-                height: 1,
-                color: AppColors.light,
-              ),
+              const Divider(height: 1, color: AppColors.light),
               _notificationTile(
                 title: 'Getaran',
                 subtitle: 'Getaran saat notifikasi diterima',
@@ -547,55 +508,55 @@ class _ProfilePageState extends State<ProfilePage> {
 
         const SizedBox(height: 14),
 
-        // Tombol untuk menguji notifikasi di perangkat.
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: (!_notifications || _testingNotification)
-                ? null
-                : _testNotification,
-            icon: _testingNotification
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.white,
-                    ),
-                  )
-                : const Icon(
-                    Icons.notifications_active_outlined,
-                    size: 19,
-                  ),
-            label: Text(
-              _testingNotification
-                  ? 'Menjadwalkan...'
-                  : 'Tes Notifikasi',
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
-              disabledBackgroundColor: AppColors.light,
-              disabledForegroundColor: AppColors.textSecondary,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
+        // // Tombol untuk menguji notifikasi di perangkat.
+        // SizedBox(
+        //   width: double.infinity,
+        //   child: ElevatedButton.icon(
+        //     onPressed: (!_notifications || _testingNotification)
+        //         ? null
+        //         : _testNotification,
+        //     icon: _testingNotification
+        //         ? const SizedBox(
+        //             width: 18,
+        //             height: 18,
+        //             child: CircularProgressIndicator(
+        //               strokeWidth: 2,
+        //               color: AppColors.white,
+        //             ),
+        //           )
+        //         : const Icon(
+        //             Icons.notifications_active_outlined,
+        //             size: 19,
+        //           ),
+        //     label: Text(
+        //       _testingNotification
+        //           ? 'Menjadwalkan...'
+        //           : 'Tes Notifikasi',
+        //     ),
+        //     style: ElevatedButton.styleFrom(
+        //       backgroundColor: AppColors.primary,
+        //       foregroundColor: AppColors.white,
+        //       disabledBackgroundColor: AppColors.light,
+        //       disabledForegroundColor: AppColors.textSecondary,
+        //       elevation: 0,
+        //       padding: const EdgeInsets.symmetric(vertical: 14),
+        //       shape: RoundedRectangleBorder(
+        //         borderRadius: BorderRadius.circular(12),
+        //       ),
+        //     ),
+        //   ),
+        // ),
 
-        const SizedBox(height: 8),
+        // const SizedBox(height: 8),
 
-        Text(
-          'Notifikasi percobaan akan muncul 10 detik setelah tombol ditekan. '
-          'Kamu bisa menutup aplikasi untuk menguji notifikasi latar belakang.',
-          style: AppTextStyle.body.copyWith(
-            fontSize: 11,
-            color: AppColors.textSecondary,
-          ),
-        ),
+        // Text(
+        //   'Notifikasi percobaan akan muncul 10 detik setelah tombol ditekan. '
+        //   'Kamu bisa menutup aplikasi untuk menguji notifikasi latar belakang.',
+        //   style: AppTextStyle.body.copyWith(
+        //     fontSize: 11,
+        //     color: AppColors.textSecondary,
+        //   ),
+        // ),
       ],
     );
   }
@@ -652,9 +613,7 @@ class _ProfilePageState extends State<ProfilePage> {
         onPressed: _logout,
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.error,
-          side: const BorderSide(
-            color: AppColors.error,
-          ),
+          side: const BorderSide(color: AppColors.error),
           padding: const EdgeInsets.symmetric(vertical: 15),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -662,9 +621,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         child: const Text(
           'Keluar dari Akun',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -738,10 +695,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       filled: true,
       fillColor: AppColors.background,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 14,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none,
@@ -752,10 +706,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(
-          color: AppColors.primary,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
       ),
     );
   }
