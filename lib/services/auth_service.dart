@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'fcm_service.dart';
 
+import 'local_db.dart';
+
 class AuthService {
   final SupabaseClient _sb = Supabase.instance.client;
 
@@ -70,31 +72,42 @@ class AuthService {
     }
   }
 
-  Future<void> logout() async {
-    // 1. Hapus token dulu agar notifikasi tidak nyasar
-    await FcmService.removeTokenFromSupabase();
-
-    // 2. Baru lakukan sign out
-    await _sb.auth.signOut();
-  }
+  Future<void> logout() => _sb.auth.signOut();
 
   Future<void> forgotPassword(String email) =>
       _sb.auth.resetPasswordForEmail(email);
 
-  /// Ambil role user dari public.users.
-  /// Return 'user' kalau tidak ketemu (fail-safe).
+  /// Ambil role user dari public.users (online) atau fallback ke Hive (offline).
   Future<String> getRole() async {
     final uid = currentUser?.id;
-    if (uid == null) return 'guest';
+    final offlineSession = LocalDb.getUserSession();
+
+    if (uid == null) {
+      return offlineSession?['role']?.toString() ?? 'guest';
+    }
+
     try {
       final row = await _sb
           .from('users')
           .select('role')
           .eq('id', uid)
           .maybeSingle();
-      return (row?['role'] as String?) ?? 'user';
+
+      final role = (row?['role'] as String?) ?? 'user';
+
+      // Perbarui role terbaru ke Hive jika sesi offline tersimpan
+      if (offlineSession != null) {
+        await LocalDb.saveUserSession({
+          ...offlineSession,
+          'id': uid,
+          'role': role,
+        });
+      }
+
+      return role;
     } catch (_) {
-      return 'user';
+      // Jika offline / gagal koneksi ke Supabase, pakai role yang tersimpan di Hive
+      return offlineSession?['role']?.toString() ?? 'user';
     }
   }
 }

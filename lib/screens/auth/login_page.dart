@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/local_db.dart';
 
 import '../../services/auth_service.dart';
 import '../admin/admin_home_page.dart';
@@ -50,15 +51,44 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
     try {
+      // 1. Login online menggunakan NIM & password
       await _auth.loginWithNim(nim: username, password: password);
       final role = await _auth.getRole();
+      final user = Supabase.instance.client.auth.currentUser;
+
+      // 2. Simpan sesi user ke Hive (LocalDb) untuk akses/login offline
+      if (_rememberMe) {
+        await LocalDb.saveUserSession({
+          'id': user?.id ?? '',
+          'nim': username,
+          'password': password,
+          'role': role,
+        });
+      } else {
+        await LocalDb.clearUserSession();
+      }
+
+      if (!mounted) return;
       Get.offAll(
         () => role == 'admin' ? const AdminHomePage() : const UserMainPage(),
       );
     } on AuthException catch (e) {
       _showMessage(e.message);
     } catch (e) {
-      _showMessage('Terjadi kesalahan: $e');
+      // 3. Fallback Offline: Jika tidak ada internet, cek sesi tersimpan di Hive
+      final offlineSession = LocalDb.getUserSession();
+      if (offlineSession != null &&
+          offlineSession['nim'] == username &&
+          offlineSession['password'] == password) {
+        final role = offlineSession['role']?.toString() ?? 'user';
+        if (!mounted) return;
+        _showMessage('Masuk dalam mode offline.');
+        Get.offAll(
+          () => role == 'admin' ? const AdminHomePage() : const UserMainPage(),
+        );
+      } else {
+        _showMessage('Gagal masuk (tidak ada koneksi / akun belum tersimpan offline).');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

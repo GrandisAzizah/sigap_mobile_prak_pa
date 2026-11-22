@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'services/fcm_service.dart';
 import 'firebase_options.dart';
 import 'screens/auth/splash_page.dart';
+import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 1. Inisialisasi Hive (Local Database) sebelum Supabase
+  await Hive.initFlutter();
+  await Hive.openBox('sigap_local_box');
+
+  // 2. Load .env dan inisialisasi Supabase
   await dotenv.load(fileName: '.env');
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
@@ -18,6 +26,9 @@ Future<void> main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await FcmService.init();
+  // 3. Inisialisasi layanan notifikasi lokal
+  await NotificationService.initialize();
+
   runApp(const SigapApp());
 }
 
@@ -26,10 +37,10 @@ class SigapApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
+    return const GetMaterialApp(
       title: 'SIGAP',
       debugShowCheckedModeBanner: false,
-      home: const SplashPage(),
+      home: SplashPage(),
     );
   }
 }
