@@ -60,6 +60,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
       } else {
         errorMessage = 'Gagal memuat data laporan. Silakan coba lagi.';
       }
+      setState(() => _error = errorMessage);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
