@@ -1,7 +1,7 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'dart:convert';
+typedef LocalMap = Map<String, dynamic>;
 
 class LocalDb {
   // Instansiasi private
@@ -9,10 +9,12 @@ class LocalDb {
 
   static const String _boxName = 'sigap_local_box';
   static const String _reportsKey = 'cached_reports';
+  static const String _adminReportsKey = 'cached_admin_reports';
   static const String _userSessionKey = 'offline_user_session';
+  static const String _savedAccountsKey = 'saved_offline_accounts';
 
   static Box get _box => Hive.box(_boxName);
-  // 1. SHARED PREFERENCES (Method Asli Dipertahankan)
+
   // Fungsi untuk menyimpan data (String, int, bool, dll)
   static Future<bool> setPref(String key, dynamic value) async {
     final prefs = await SharedPreferences.getInstance();
@@ -48,90 +50,91 @@ class LocalDb {
     return await prefs.clear();
   }
 
-  // 2. HIVE LOCAL DATABASE — SESI LOGIN OFFLINE
-  /// Menyimpan sesi user setelah berhasil login online (id, email, nama, role, dll).
-  // static Future<void> saveUserSession(Map<String, dynamic> userData) async {
-  //   await _box.put(_userSessionKey, userData);
-  // }
-
-  // /// Mengambil sesi user yang tersimpan di Hive untuk login/akses offline.
-  // static Map<String, dynamic>? getUserSession() {
-  //   final raw = _box.get(_userSessionKey);
-  //   if (raw == null || raw is! Map) return null;
-  //   return Map<String, dynamic>.from(raw);
-  // }
-
-  // Simpan sebagai String JSON
-  static Future<void> saveUserSession(Map<String, dynamic> userData) async {
-    final String jsonString = jsonEncode(userData);
-    await _box.put(_userSessionKey, jsonString);
+  // Simpan sesi user yang sedang login ke Hive
+  static Future<void> saveUserSession(LocalMap userData) async {
+    await _box.put(_userSessionKey, userData);
   }
 
-  // Baca dari String JSON lalu ubah lagi jadi Map
-  static Map<String, dynamic>? getUserSession() {
+  // Ambil sesi user dari Hive untuk mode offline
+  static LocalMap? getUserSession() {
     final raw = _box.get(_userSessionKey);
-    if (raw == null || raw is! String) return null;
-
-    try {
-      final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      return decoded;
-    } catch (e) {
-      return null;
-    }
+    if (raw == null || raw is! Map) return null;
+    return LocalMap.from(raw);
   }
 
-  /// Mengecek apakah terdapat sesi user tersimpan untuk mode offline.
+  // Cek apakah ada sesi offline yang tersimpan
   static bool hasOfflineSession() {
     return getUserSession() != null;
   }
 
-  /// Menghapus sesi user lokal (dipanggil saat logout).
+  // Hapus sesi user aktif saat logout
   static Future<void> clearUserSession() async {
     await _box.delete(_userSessionKey);
   }
 
-  // 3. HIVE LOCAL DATABASE — DATA LAPORAN OFFLINE
-  /// Menyimpan daftar laporan (dalam bentuk List) ke Hive.
-  // static Future<void> saveReports(List reports) async {
-  //   await _box.put(_reportsKey, reports);
-  // }
+  // Simpan riwayat akun yang pernah login agar tetap bisa masuk saat offline
+  static Future<void> saveOfflineAccount({
+    required String id,
+    required String nim,
+    required String password,
+    required String role,
+  }) async {
+    final raw = _box.get(_savedAccountsKey);
+    final Map accounts = raw is Map ? Map.from(raw) : {};
 
-  // /// Mengambil daftar laporan yang tersimpan di Hive saat offline.
-  // static List getReports() {
-  //   final raw = _box.get(_reportsKey);
-  //   if (raw == null || raw is! List) return [];
+    accounts[nim] = {'id': id, 'nim': nim, 'password': password, 'role': role};
 
-  //   return raw.map((item) => Map<String, dynamic>.from(item as Map)).toList();
-  // }
-
-  // Simpan sebagai String JSON
-  static Future<void> saveReports(List reports) async {
-    final String jsonString = jsonEncode(reports);
-    await _box.put(_reportsKey, jsonString);
+    await _box.put(_savedAccountsKey, accounts);
   }
 
-  // Baca dari String JSON lalu ubah lagi jadi List
+  // Ambil data akun berdasarkan NIM untuk verifikasi login offline
+  static LocalMap? getOfflineAccount(String nim) {
+    final raw = _box.get(_savedAccountsKey);
+    if (raw == null || raw is! Map) return null;
+
+    final account = raw[nim];
+    if (account == null || account is! Map) return null;
+
+    return LocalMap.from(account);
+  }
+
+  // Simpan daftar laporan user ke Hive
+  static Future<void> saveReports(List reports) async {
+    await _box.put(_reportsKey, reports);
+  }
+
+  // Ambil daftar laporan user dari Hive
   static List getReports() {
     final raw = _box.get(_reportsKey);
-    if (raw == null || raw is! String) return [];
+    if (raw == null || raw is! List) return [];
 
-    try {
-      final decoded = jsonDecode(raw) as List;
-      // Konversi setiap item menjadi Map<String, dynamic>
-      return decoded
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .toList();
-    } catch (e) {
-      return [];
-    }
+    return raw.map((item) => LocalMap.from(item as Map)).toList();
   }
 
-  /// Menghapus cache laporan lokal dari Hive.
+  // Hapus cache laporan user
   static Future<void> clearReports() async {
     await _box.delete(_reportsKey);
   }
 
-  /// Menghapus seluruh data lokal (baik SharedPreferences maupun Hive).
+  // Simpan daftar semua laporan untuk halaman admin ke Hive
+  static Future<void> saveAdminReports(List reports) async {
+    await _box.put(_adminReportsKey, reports);
+  }
+
+  // Ambil daftar laporan admin dari Hive saat offline
+  static List getAdminReports() {
+    final raw = _box.get(_adminReportsKey);
+    if (raw == null || raw is! List) return [];
+
+    return raw.map((item) => LocalMap.from(item as Map)).toList();
+  }
+
+  // Hapus cache laporan admin
+  static Future<void> clearAdminReports() async {
+    await _box.delete(_adminReportsKey);
+  }
+
+  // Hapus seluruh data lokal di SharedPreferences dan Hive
   static Future<void> clearAllLocalData() async {
     await clearAll();
     await _box.clear();
