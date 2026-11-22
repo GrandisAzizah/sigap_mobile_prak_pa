@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../app_styles.dart';
+import '../../services/auth_service.dart';
+import '../../services/local_db.dart';
+import '../admin/admin_home_page.dart';
 import '../auth/login_page.dart';
+import '../user/user_main_page.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -25,6 +29,8 @@ class _SplashPageState extends State<SplashPage>
   late Animation<double> _logoOpacity;
 
   late Animation<double> _textOpacity;
+
+  final _auth = AuthService();
 
   @override
   void initState() {
@@ -84,11 +90,33 @@ class _SplashPageState extends State<SplashPage>
 
     _controller.forward();
 
-    // Pindah ke halaman login setelah 5 detik
-    Timer(const Duration(seconds: 5), () {
+    // Cek sesi online / offline setelah animasi 5 detik selesai
+    Timer(const Duration(seconds: 5), _handleNavigation);
+  }
+
+  Future<void> _handleNavigation() async {
+    if (!mounted) return;
+
+    final hasOnlineSession = _auth.currentSession != null;
+    final offlineSession = LocalDb.getUserSession();
+
+    // Jika pernah login dan sesi tersimpan (online maupun offline di Hive)
+    if (hasOnlineSession || offlineSession != null) {
+      final role = await _auth.getRole();
       if (!mounted) return;
-      Get.offAll(() => const LoginPage());
-    });
+
+      if (role == 'admin') {
+        Get.offAll(() => const AdminHomePage());
+        return;
+      } else if (role == 'user') {
+        Get.offAll(() => const UserMainPage());
+        return;
+      }
+    }
+
+    // Jika belum login atau sudah logout, arahkan ke halaman login
+    if (!mounted) return;
+    Get.offAll(() => const LoginPage());
   }
 
   @override
