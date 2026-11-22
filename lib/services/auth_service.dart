@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'fcm_service.dart';
 
 class AuthService {
   final SupabaseClient _sb = Supabase.instance.client;
@@ -37,7 +38,7 @@ class AuthService {
       data: {'nim': nim, 'name': name},
     );
   }
-  
+
   /// Ambil nama pengguna yang sedang login dari tabel users.
   Future<String> getCurrentUserName() async {
     final uid = currentUser?.id;
@@ -69,7 +70,13 @@ class AuthService {
     }
   }
 
-  Future<void> logout() => _sb.auth.signOut();
+  Future<void> logout() async {
+    // 1. Hapus token dulu agar notifikasi tidak nyasar
+    await FcmService.removeTokenFromSupabase();
+
+    // 2. Baru lakukan sign out
+    await _sb.auth.signOut();
+  }
 
   Future<void> forgotPassword(String email) =>
       _sb.auth.resetPasswordForEmail(email);
