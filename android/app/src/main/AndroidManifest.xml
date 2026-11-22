@@ -24,7 +24,7 @@
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:name="firebase_messaging_installation_id_enabled"
-              android:resource="@style/NormalTheme"\
+              android:resource="@style/NormalTheme"
               android:value="true"
               />
             <intent-filter>
@@ -43,7 +43,7 @@
 
         <receiver
             android:exported="false"
-            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"/>
         <intent-filter>
             <action android:name="android.intent.action.BOOT_COMPLETED"/>
             <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
