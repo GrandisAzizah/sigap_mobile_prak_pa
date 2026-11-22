@@ -72,7 +72,7 @@ class UserHomePage extends StatelessWidget {
 
               // Sapaan berdasarkan nama pengguna.
               Text(
-                'Halo, $name 👋',
+                'Halo, $name',
                 style: AppTextStyle.heading.copyWith(
                   fontSize: 19,
                 ),

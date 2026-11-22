@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import '../../app_styles.dart';
 import '../../models/report_model.dart';
@@ -15,6 +14,13 @@ class MyReportsPage extends StatefulWidget {
 class _MyReportsPageState extends State<MyReportsPage> {
   final _service = ReportService();
   String _filter = 'Semua';
+  late Future<List<ReportModel>> _reportsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportsFuture = _load();
+  }
 
   Future<List<ReportModel>> _load() async {
     try {
@@ -23,6 +29,28 @@ class _MyReportsPageState extends State<MyReportsPage> {
       // Jika internet gagal, tampilkan cache laporan terakhir.
       return _service.getCachedReports();
     }
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _reportsFuture = _load();
+    });
+    await _reportsFuture;
+  }
+
+  // Normalisasi status agar tidak sensitif terhadap huruf besar/kecil atau spasi.
+  String _normalizeStatus(String status) {
+    final s = status.trim().toLowerCase();
+    if (s == 'selesai' || s == 'done' || s == 'completed') {
+      return 'Selesai';
+    }
+    if (s == 'diproses' || s == 'proses' || s == 'in_progress') {
+      return 'Diproses';
+    }
+    if (s == 'menunggu' || s == 'pending') {
+      return 'Menunggu';
+    }
+    return status.trim();
   }
 
   @override
@@ -60,7 +88,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
 
           Expanded(
             child: FutureBuilder<List<ReportModel>>(
-              future: _load(),
+              future: _reportsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState ==
                     ConnectionState.waiting) {
@@ -72,31 +100,42 @@ class _MyReportsPageState extends State<MyReportsPage> {
                 final reports = snapshot.data ?? [];
 
                 final filtered = reports.where((r) {
+                  final normalized = _normalizeStatus(r.status);
+
                   if (_filter == 'Semua') return true;
 
                   if (_filter == 'Diproses') {
-                    return r.status == 'Diproses' ||
-                        r.status == 'Menunggu';
+                    return normalized == 'Diproses' ||
+                        normalized == 'Menunggu';
                   }
 
-                  return r.status == 'Selesai';
+                  return normalized == 'Selesai';
                 }).toList();
 
                 if (filtered.isEmpty) {
-                  return const Center(
-                    child: Text('Belum ada laporan.'),
+                  return RefreshIndicator(
+                    onRefresh: _refresh,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 180),
+                        Center(
+                          child: Text('Belum ada laporan.'),
+                        ),
+                      ],
+                    ),
                   );
                 }
 
                 return RefreshIndicator(
-                  onRefresh: () async {
-                    setState(() {});
-                  },
+                  onRefresh: _refresh,
                   child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final report = filtered[index];
+                      final displayStatus = _normalizeStatus(report.status);
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -158,7 +197,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
                                 ),
                               ),
                               const SizedBox(height: 5),
-                              _status(report.status),
+                              _status(displayStatus),
                             ],
                           ),
 
@@ -166,8 +205,8 @@ class _MyReportsPageState extends State<MyReportsPage> {
                             Icons.chevron_right,
                           ),
 
-                          onTap: () {
-                            Navigator.push(
+                          onTap: () async {
+                            await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => ReportDetailPage(
@@ -175,6 +214,8 @@ class _MyReportsPageState extends State<MyReportsPage> {
                                 ),
                               ),
                             );
+                            // Muat ulang data setelah kembali dari halaman detail.
+                            _refresh();
                           },
                         ),
                       );
@@ -190,9 +231,10 @@ class _MyReportsPageState extends State<MyReportsPage> {
   }
 
   Widget _status(String status) {
-    final color = status == 'Selesai'
+    final normalized = _normalizeStatus(status);
+    final color = normalized == 'Selesai'
         ? AppColors.success
-        : status == 'Diproses'
+        : normalized == 'Diproses'
             ? AppColors.warning
             : AppColors.secondary;
 
@@ -206,7 +248,7 @@ class _MyReportsPageState extends State<MyReportsPage> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        status,
+        normalized,
         style: TextStyle(
           color: color,
           fontSize: 10,
