@@ -1,3 +1,4 @@
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -33,16 +34,16 @@ class _UserMainPageState extends State<UserMainPage> {
   ];
 
   @override
-void initState() {
-  super.initState();
-  NotificationService.startUserReportListener();
-}
+  void initState() {
+    super.initState();
+    unawaited(NotificationService.startUserReportListener());
+  }
 
-@override
-void dispose() {
-  NotificationService.stopUserReportListener();
-  super.dispose();
-}
+  @override
+  void dispose() {
+    unawaited(NotificationService.startUserReportListener());
+    super.dispose();
+  }
 
   // Mengganti halaman berdasarkan indeks menu yang dipilih.
   void _selectTab(int index) {
@@ -61,10 +62,7 @@ void dispose() {
       // Menampilkan halaman sesuai menu yang dipilih.
       // IndexedStack mempertahankan kondisi halaman ketika berpindah menu.
       body: SafeArea(
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: _pages,
-        ),
+        child: IndexedStack(index: _selectedIndex, children: _pages),
       ),
 
       // Navbar hanya memiliki tiga menu.
