@@ -51,6 +51,15 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     } catch (e) {
       debugPrint('Gagal memuat profil: $e');
       _error = '$e';
+      String errorMessage = '$e';
+
+      if (errorMessage.contains('SocketException') ||
+          errorMessage.contains('Failed host lookup') ||
+          errorMessage.contains('ClientException')) {
+        errorMessage = 'Koneksi bermasalah. Periksa jaringan internet Anda.';
+      } else {
+        errorMessage = 'Gagal memuat data laporan. Silakan coba lagi.';
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

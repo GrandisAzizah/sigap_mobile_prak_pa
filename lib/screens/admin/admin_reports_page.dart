@@ -91,7 +91,16 @@ class _AdminReportsPageState extends State<AdminReportsPage>
           _error = null;
         });
       } else {
-        setState(() => _error = '$e');
+        String errorMessage = '$e';
+
+        if (errorMessage.contains('SocketException') ||
+            errorMessage.contains('Failed host lookup') ||
+            errorMessage.contains('ClientException')) {
+          errorMessage = 'Koneksi bermasalah. Periksa jaringan internet Anda.';
+        } else {
+          errorMessage = 'Gagal memuat data laporan. Silakan coba lagi.';
+        }
+        setState(() => _error = errorMessage);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -264,19 +273,29 @@ class _ReportList extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: items.isEmpty
-          ? ListView(
-              children: [
-                const SizedBox(height: 100),
-                Center(
-                  child: Text(
-                    query.trim().isEmpty
-                        ? emptyText
-                        : 'Tidak ada laporan dengan kata "${query.trim()}"',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyle.label,
+          ? LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Text(
+                          query.trim().isEmpty
+                              ? emptyText
+                              : 'Tidak ada laporan dengan kata "${query.trim()}"',
+                          textAlign: TextAlign.center,
+                          style: AppTextStyle.label,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                );
+              },
             )
           : ListView.builder(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -420,7 +439,7 @@ class _ErrorView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Gagal memuat laporan\n$message',
+              message,
               textAlign: TextAlign.center,
               style: AppTextStyle.label.copyWith(fontSize: 12),
             ),

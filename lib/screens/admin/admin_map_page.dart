@@ -49,7 +49,15 @@ class _AdminMapPageState extends State<AdminMapPage> {
       setState(() => _all = List<Map<String, dynamic>>.from(data as List));
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '$e');
+      String errorMessage = '$e';
+      if (errorMessage.contains('SocketException') ||
+          errorMessage.contains('Failed host lookup') ||
+          errorMessage.contains('ClientException')) {
+        errorMessage = 'Koneksi terputus';
+      } else {
+        errorMessage = 'Gagal memuat data';
+      }
+      setState(() => _error = errorMessage);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -109,47 +117,49 @@ class _AdminMapPageState extends State<AdminMapPage> {
     ].where((e) => e != null && e.isNotEmpty).join(' • ');
 
     Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    (r['report_code'] ?? '-').toString(),
-                    style: AppTextStyle.label.copyWith(
-                      fontWeight: FontWeight.w700,
+      SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      (r['report_code'] ?? '-').toString(),
+                      style: AppTextStyle.label.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-                StatusChip((r['status_reports'] ?? 'menunggu').toString()),
+                  StatusChip((r['status_reports'] ?? 'menunggu').toString()),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                (r['title'] ?? '').toString(),
+                style: AppTextStyle.heading.copyWith(fontSize: 16),
+              ),
+              if (location.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(location, style: AppTextStyle.label),
               ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              (r['title'] ?? '').toString(),
-              style: AppTextStyle.heading.copyWith(fontSize: 16),
-            ),
-            if (location.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(location, style: AppTextStyle.label),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  Get.back();
+                  _openDetail(r);
+                },
+                child: const Text('Buka detail'),
+              ),
             ],
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                Get.back();
-                _openDetail(r);
-              },
-              child: const Text('Buka detail'),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -157,41 +167,43 @@ class _AdminMapPageState extends State<AdminMapPage> {
 
   void _showMultipleReportsSheet(List<Map<String, dynamic>> reports) {
     Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Ada ${reports.length} laporan di sini',
-              style: AppTextStyle.heading.copyWith(fontSize: 16),
-            ),
-            const SizedBox(height: 12),
-            ListView.builder(
-              shrinkWrap: true,
-              itemCount: reports.length,
-              itemBuilder: (context, index) {
-                final r = reports[index];
-                return ListTile(
-                  leading: Icon(
-                    Icons.circle,
-                    color: _color(r['status_reports'].toString()),
-                  ),
-                  title: Text(r['title'] ?? '-'),
-                  subtitle: Text(r['status_reports'] ?? '-'),
-                  onTap: () {
-                    Get.back(); // tutup sheet list
-                    _openDetail(r); // buka detail laporan
-                  },
-                );
-              },
-            ),
-          ],
+      SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ada ${reports.length} laporan di sini',
+                style: AppTextStyle.heading.copyWith(fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              ListView.builder(
+                shrinkWrap: true,
+                itemCount: reports.length,
+                itemBuilder: (context, index) {
+                  final r = reports[index];
+                  return ListTile(
+                    leading: Icon(
+                      Icons.circle,
+                      color: _color(r['status_reports'].toString()),
+                    ),
+                    title: Text(r['title'] ?? '-'),
+                    subtitle: Text(r['status_reports'] ?? '-'),
+                    onTap: () {
+                      Get.back(); // tutup sheet list
+                      _openDetail(r); // buka detail laporan
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -378,7 +390,7 @@ class _AdminMapPageState extends State<AdminMapPage> {
           // Legenda warna marker
           Positioned(
             left: 16,
-            bottom: 16,
+            bottom: 16 + MediaQuery.of(context).padding.bottom,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(

@@ -51,7 +51,16 @@ class _AdminStaffPageState extends State<AdminStaffPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '$e');
+      String errorMessage = '$e';
+
+      if (errorMessage.contains('SocketException') ||
+          errorMessage.contains('Failed host lookup') ||
+          errorMessage.contains('ClientException')) {
+        errorMessage = 'Koneksi bermasalah. Periksa jaringan internet Anda.';
+      } else {
+        errorMessage = 'Gagal memuat data laporan. Silakan coba lagi.';
+      }
+      setState(() => _error = errorMessage);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -85,6 +94,7 @@ class _AdminStaffPageState extends State<AdminStaffPage> {
   }
 
   Future<void> _openForm([Map<String, dynamic>? staff]) async {
+    // controller
     final name = TextEditingController(text: staff?['name_staff'] as String?);
     final phone = TextEditingController(text: staff?['phone'] as String?);
     String? categoryId = staff?['category_id'] as String?;
@@ -92,98 +102,115 @@ class _AdminStaffPageState extends State<AdminStaffPage> {
     bool active = (staff?['is_active'] ?? true) as bool;
     final formKey = GlobalKey<FormState>();
     bool saving = false;
+    // simpan nilai awal buat cek perubahan
+    final initialName = staff?['name_staff'] as String? ?? '';
+    final initialPhone = staff?['phone'] as String? ?? '';
+    final initialCategoryId = categoryId;
+    final initialActive = active;
 
     final saved = await Get.dialog<bool>(
       StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          backgroundColor: AppColors.white,
-          title: Text(
-            staff == null ? 'Tambah Petugas' : 'Edit Petugas',
-            style: AppTextStyle.heading.copyWith(fontSize: 18),
-          ),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: name,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Nama petugas',
+        builder: (ctx, setLocal) {
+          name.addListener(() => setLocal(() {}));
+          phone.addListener(() => setLocal(() {}));
+          final hasChanges =
+              name.text != initialName ||
+              phone.text != initialPhone ||
+              categoryId != initialCategoryId ||
+              active != initialActive;
+          return AlertDialog(
+            backgroundColor: AppColors.white,
+            title: Text(
+              staff == null ? 'Tambah Petugas' : 'Edit Petugas',
+              style: AppTextStyle.heading.copyWith(fontSize: 18),
+            ),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: name,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama petugas',
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Nama wajib diisi'
+                          : null,
                     ),
-                    validator: (v) => (v == null || v.trim().isEmpty)
-                        ? 'Nama wajib diisi'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: phone,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'No. HP (opsional)',
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: phone,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'No. HP (opsional)',
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: categoryId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Bidang kerja',
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: categoryId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Bidang kerja',
+                      ),
+                      items: _categories
+                          .map(
+                            (c) => DropdownMenuItem<String>(
+                              value: c['id'] as String,
+                              child: Text(c['name'].toString()),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setLocal(() => categoryId = v),
                     ),
-                    items: _categories
-                        .map(
-                          (c) => DropdownMenuItem<String>(
-                            value: c['id'] as String,
-                            child: Text(c['name'].toString()),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setLocal(() => categoryId = v),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('Aktif', style: AppTextStyle.body),
-                    value: active,
-                    onChanged: (v) => setLocal(() => active = v),
-                  ),
-                ],
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('Aktif', style: AppTextStyle.body),
+                      value: active,
+                      onChanged: (v) => setLocal(() => active = v),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Get.back(result: false),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      if (!formKey.currentState!.validate()) return;
-                      setLocal(() => saving = true);
-                      final ok = await _save(
-                        id: staff?['id'] as String?,
-                        name: name.text.trim(),
-                        phone: phone.text.trim().isEmpty
-                            ? null
-                            : phone.text.trim(),
-                        categoryId: categoryId,
-                        active: active,
-                      );
-                      if (ok) {
-                        Get.back(result: true);
-                      } else {
-                        setLocal(() => saving = false);
-                      }
-                    },
-              child: const Text('Simpan'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Get.back(result: false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: (saving || !hasChanges)
+                    ? null
+                    : () async {
+                        if (!formKey.currentState!.validate()) return;
+                        setLocal(() => saving = true);
+                        final ok = await _save(
+                          id: staff?['id'] as String?,
+                          name: name.text.trim(),
+                          phone: phone.text.trim().isEmpty
+                              ? null
+                              : phone.text.trim(),
+                          categoryId: categoryId,
+                          active: active,
+                        );
+                        if (ok) {
+                          Get.back(result: true);
+                        } else {
+                          setLocal(() => saving = false);
+                        }
+                      },
+                child: const Text('Simpan'),
+              ),
+            ],
+          );
+        },
       ),
     );
+
+    name.dispose();
+    phone.dispose();
 
     if (saved == true) {
       Get.snackbar(
@@ -214,7 +241,10 @@ class _AdminStaffPageState extends State<AdminStaffPage> {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.background,
+            ),
             onPressed: () => Get.back(result: true),
             child: const Text('Hapus'),
           ),
