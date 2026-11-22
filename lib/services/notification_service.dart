@@ -1,6 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 class NotificationService {
@@ -15,7 +15,7 @@ class NotificationService {
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    tz.initializeTimeZones();
+    tzdata.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Jakarta'));
 
     const androidSettings = AndroidInitializationSettings(
@@ -24,7 +24,6 @@ class NotificationService {
 
     const settings = InitializationSettings(android: androidSettings);
 
-    // v22: positional parameter
     await _plugin.initialize(settings: settings);
 
     final android = _plugin
@@ -37,13 +36,13 @@ class NotificationService {
     _initialized = true;
   }
 
-  // Menampilkan notifikasi langsung.
-  static Future<void> showNotification({
+  // =========================================================================
+  // FUNGSI: Menampilkan notifikasi dengan jeda 1 detik
+  // =========================================================================
+  static Future<void> _showDelayedNotification({
     required int id,
     required String title,
     required String body,
-    bool soundEnabled = true,
-    bool vibrationEnabled = true,
   }) async {
     await initialize();
 
@@ -53,20 +52,26 @@ class NotificationService {
       channelDescription: 'Notifikasi status laporan dan laporan masuk SIGAP',
       importance: Importance.max,
       priority: Priority.high,
-      playSound: soundEnabled,
-      enableVibration: vibrationEnabled,
     );
 
-    // v22: positional parameter
-    await _plugin.show(
+    // Ambil waktu sekarang di zona WIB, lalu tambah 1 detik
+    final now = tz.TZDateTime.now(tz.getLocation('Asia/Jakarta'));
+    final scheduleTime = now.add(const Duration(seconds: 1));
+
+    // Gunakan zonedSchedule agar masuk ke sistem AlarmManager Android
+    await _plugin.zonedSchedule(
       id: id,
       title: title,
       body: body,
+      scheduledDate: scheduleTime,
       notificationDetails: NotificationDetails(android: androidDetails),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }
 
-  // 1. Listener laporan user (perubahan status).
+  // =========================================================================
+  // 1. LISTENER USER: Mendengarkan perubahan status laporan dari Admin
+  // =========================================================================
   static Future<void> startUserReportListener() async {
     await initialize();
     final db = Supabase.instance.client;
@@ -87,14 +92,15 @@ class NotificationService {
             value: user.id,
           ),
           callback: (payload) {
-            final oldStatus = payload.oldRecord['status']?.toString();
-            final newStatus = payload.newRecord['status']?.toString();
+            // Perhatikan: di SIGAP kolomnya bernama 'status_reports', bukan 'status'
+            final oldStatus = payload.oldRecord['status_reports']?.toString();
+            final newStatus = payload.newRecord['status_reports']?.toString();
             final title =
                 payload.newRecord['title']?.toString() ?? 'Laporan Anda';
 
+            // Cek agar notifikasi tidak muncul saat admin edit deskripsi (status tidak berubah)
             if (newStatus != null && oldStatus != newStatus) {
-              // ignore: discarded_futures
-              showNotification(
+              _showDelayedNotification(
                 id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
                 title: 'Status Laporan Diperbarui',
                 body: '$title kini berstatus: $newStatus',
@@ -105,7 +111,9 @@ class NotificationService {
         .subscribe();
   }
 
-  // 2. Listener laporan baru admin.
+  // =========================================================================
+  // 2. LISTENER ADMIN: Mendengarkan laporan baru yang masuk
+  // =========================================================================
   static Future<void> startAdminReportListener() async {
     await initialize();
     final db = Supabase.instance.client;
@@ -123,7 +131,8 @@ class NotificationService {
                 payload.newRecord['title']?.toString() ??
                 'Laporan Kerusakan Baru';
             final detail = payload.newRecord['report_detail']?.toString() ?? '';
-            showNotification(
+
+            _showDelayedNotification(
               id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
               title: title,
               body: detail.isNotEmpty
@@ -135,6 +144,9 @@ class NotificationService {
         .subscribe();
   }
 
+  // =========================================================================
+  // SISANYA: Fungsi bawaan (Stop, Test, dll)
+  // =========================================================================
   static Future<void> stopUserReportListener() async {
     if (_userChannel != null) {
       await Supabase.instance.client.removeChannel(_userChannel!);
@@ -176,11 +188,10 @@ class NotificationService {
 
     final details = NotificationDetails(android: androidDetails);
 
-    // v22: positional parameter + named androidScheduleMode
     await _plugin.zonedSchedule(
       id: 999,
       title: 'Tes Notifikasi SIGAP',
-      body: 'Berhasil! ...',
+      body: 'Berhasil! Notifikasi muncul setelah 10 detik.',
       scheduledDate: tz.TZDateTime.now(tz.local)
           .add(const Duration(seconds: 10)),
       notificationDetails: details,
@@ -188,7 +199,6 @@ class NotificationService {
     );
   }
 
-  // Membatalkan notifikasi percobaan.
   static Future<void> cancelTestNotification() async {
     await _plugin.cancel(id: 999);
   }
