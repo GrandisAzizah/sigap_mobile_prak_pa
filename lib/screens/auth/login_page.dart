@@ -27,7 +27,6 @@ class _LoginPageState extends State<LoginPage> {
   bool _rememberMe = true;
   bool _loading = false;
 
-  // Warna lokal A — boleh dipakai, tapi lihat catatan di bawah
   static const Color primary = Color(0xFF7654D9);
   static const Color primaryLight = Color(0xFF9478EB);
   static const Color background = Color(0xFFF8F6FF);
