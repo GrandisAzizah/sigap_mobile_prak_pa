@@ -73,75 +73,75 @@ class NotificationService {
   // 1. LISTENER USER: Mendengarkan perubahan status laporan dari Admin
   // =========================================================================
   static Future<void> startUserReportListener() async {
-    await initialize();
-    final db = Supabase.instance.client;
-    final user = db.auth.currentUser;
-    if (user == null) return;
+    // await initialize();
+    // final db = Supabase.instance.client;
+    // final user = db.auth.currentUser;
+    // if (user == null) return;
 
-    await stopUserReportListener();
+    // await stopUserReportListener();
 
-    _userChannel = db
-        .channel('user-reports-${user.id}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'reports',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'user_id',
-            value: user.id,
-          ),
-          callback: (payload) {
-            // Perhatikan: di SIGAP kolomnya bernama 'status_reports', bukan 'status'
-            final oldStatus = payload.oldRecord['status_reports']?.toString();
-            final newStatus = payload.newRecord['status_reports']?.toString();
-            final title =
-                payload.newRecord['title']?.toString() ?? 'Laporan Anda';
+    // _userChannel = db
+    //     .channel('user-reports-${user.id}')
+    //     .onPostgresChanges(
+    //       event: PostgresChangeEvent.update,
+    //       schema: 'public',
+    //       table: 'reports',
+    //       filter: PostgresChangeFilter(
+    //         type: PostgresChangeFilterType.eq,
+    //         column: 'user_id',
+    //         value: user.id,
+    //       ),
+    //       callback: (payload) {
+    //         // status_report
+    //         final oldStatus = payload.oldRecord['status_reports']?.toString();
+    //         final newStatus = payload.newRecord['status_reports']?.toString();
+    //         final title =
+    //             payload.newRecord['title']?.toString() ?? 'Laporan Anda';
 
-            // Cek agar notifikasi tidak muncul saat admin edit deskripsi (status tidak berubah)
-            if (newStatus != null && oldStatus != newStatus) {
-              _showDelayedNotification(
-                id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-                title: 'Status Laporan Diperbarui',
-                body: '$title kini berstatus: $newStatus',
-              );
-            }
-          },
-        )
-        .subscribe();
+    //         // Cek agar notifikasi tidak muncul saat admin edit deskripsi (status tidak berubah)
+    //         if (newStatus != null && oldStatus != newStatus) {
+    //           _showDelayedNotification(
+    //             id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    //             title: 'Status Laporan Diperbarui',
+    //             body: '$title kini berstatus: $newStatus',
+    //           );
+    //         }
+    //       },
+    //     )
+    //     .subscribe();
   }
 
   // =========================================================================
   // 2. LISTENER ADMIN: Mendengarkan laporan baru yang masuk
   // =========================================================================
   static Future<void> startAdminReportListener() async {
-    await initialize();
-    final db = Supabase.instance.client;
+    // await initialize();
+    // final db = Supabase.instance.client;
 
-    await stopAdminReportListener();
+    // await stopAdminReportListener();
 
-    _adminChannel = db
-        .channel('admin-new-reports')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'reports',
-          callback: (payload) {
-            final title =
-                payload.newRecord['title']?.toString() ??
-                'Laporan Kerusakan Baru';
-            final detail = payload.newRecord['report_detail']?.toString() ?? '';
+    // _adminChannel = db
+    //     .channel('admin-new-reports')
+    //     .onPostgresChanges(
+    //       event: PostgresChangeEvent.insert,
+    //       schema: 'public',
+    //       table: 'reports',
+    //       callback: (payload) {
+    //         final title =
+    //             payload.newRecord['title']?.toString() ??
+    //             'Laporan Kerusakan Baru';
+    //         final detail = payload.newRecord['report_detail']?.toString() ?? '';
 
-            _showDelayedNotification(
-              id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-              title: title,
-              body: detail.isNotEmpty
-                  ? detail
-                  : 'Ada laporan kerusakan baru yang perlu ditinjau.',
-            );
-          },
-        )
-        .subscribe();
+    //         _showDelayedNotification(
+    //           id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    //           title: title,
+    //           body: detail.isNotEmpty
+    //               ? detail
+    //               : 'Ada laporan kerusakan baru yang perlu ditinjau.',
+    //         );
+    //       },
+    //     )
+    //     .subscribe();
   }
 
   // =========================================================================
