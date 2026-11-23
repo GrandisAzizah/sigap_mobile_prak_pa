@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app_styles.dart';
 import 'status_chip.dart';
 
+// ambil data dari supabase, ini query
 const adminReportSelect =
     '*, categories(name), buildings(name), staffs(name_staff), users(name, nim), report_photos(photo_url)';
 
@@ -18,7 +19,9 @@ class AdminReportDetailPage extends StatefulWidget {
 
 class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
   final _db = Supabase.instance.client;
-
+  // widget report ambil data dari halaman sebelumnya (daftar laporan)
+  // _status, _staffId dan _note nyimpen pilihan admin
+  //sementara sebelum dimasukin ke database
   late String _status = (widget.report['status_reports'] ?? 'menunggu')
       .toString();
   late String? _staffId = widget.report['staff_id'] as String?;
@@ -28,6 +31,8 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
 
   List<Map<String, dynamic>> _staffs = [];
   bool _saving = false;
+  // simpan nilai awal, untuk cek apakah
+  //admin beneran ngubah sesuatu supaya tombol simpan aktif
   late final String _initialStatus;
   late final String? _initialStaffId;
   late final String _initialNote;
@@ -47,6 +52,8 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
     super.dispose();
   }
 
+  // fungsi ambil daftar petugas di database
+  // petugas kategori sama dengan laporan ada di paling atas
   Future<void> _loadStaffs() async {
     try {
       final data = await _db
@@ -85,6 +92,7 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
         _note.text != _initialNote;
   }
 
+  // kalo status diproses(diubah) maka harus pilih staf
   Future<void> _save() async {
     if (_status == 'diproses' && _staffId == null) {
       _snack('Pilih petugas yang menangani laporan ini');
@@ -92,6 +100,7 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
     }
     setState(() => _saving = true);
     try {
+      // update db
       await _db
           .from('reports')
           .update({
@@ -100,6 +109,7 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
             'admin_note': _note.text.trim().isEmpty ? null : _note.text.trim(),
           })
           .eq('id', widget.report['id']);
+      // tutup halaman dan kasih snackbar hijau kalo sukses
       Get.back(result: true);
       Get.snackbar(
         'Tersimpan',
@@ -125,6 +135,7 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
   @override
   Widget build(BuildContext context) {
     final r = widget.report;
+    // liat fotonya
     final photos = ((r['report_photos'] as List?) ?? const [])
         .map((e) => (e as Map)['photo_url'] as String)
         .toList();
@@ -171,7 +182,10 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
                       errorBuilder: (_, __, ___) => Container(
                         width: 260,
                         color: AppColors.light,
-                        child: const Icon(Icons.broken_image_outlined),
+                        child: const Icon(
+                          //icon kalo foto ga bisa load atas
+                          Icons.broken_image_outlined,
+                        ),
                       ),
                     ),
                   ),
@@ -194,8 +208,10 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
             const SizedBox(height: 8),
             Row(
               children: [
+                // label status
                 StatusChip((r['status_reports'] ?? 'menunggu').toString()),
                 const SizedBox(width: 8),
+                // label severity
                 SeverityChip((r['severity'] ?? 'low').toString()),
               ],
             ),
@@ -248,6 +264,7 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
                 ),
               ),
             const SizedBox(height: 16),
+            // bagian assign
             Text(
               'Petugas Perbaikan',
               style: AppTextStyle.body.copyWith(fontWeight: FontWeight.w700),
@@ -286,6 +303,7 @@ class _AdminReportDetailPageState extends State<AdminReportDetailPage> {
               onChanged: (v) => setState(() => _staffId = v),
             ),
             const SizedBox(height: 16),
+            // catatan admin
             Text(
               'Catatan (opsional)',
               style: AppTextStyle.body.copyWith(fontWeight: FontWeight.w700),
